@@ -59,6 +59,10 @@ class Component(System):
         self._var_myproc_names['input'].append(name)
         self._var_myproc_metadata['input'].append(metadata)
 
+        # add this here even though we don't know the index yet, so we
+        # can use the dict for fast containment checks later.
+        self._var_allprocs_indices['input'][name] = None
+
     def add_output(self, name, val=1.0, **kwargs):
         """Add an output variable to the component.
 
@@ -81,6 +85,10 @@ class Component(System):
         self._var_allprocs_names['output'].append(name)
         self._var_myproc_names['output'].append(name)
         self._var_myproc_metadata['output'].append(metadata)
+
+        # add this here even though we don't know the index yet, so we
+        # can use the dict for fast containment checks later.
+        self._var_allprocs_indices['output'][name] = None
 
     def _setup_vector(self, vectors, vector_var_ids, use_ref_vector):
         r"""Add this vector and assign sub_vectors to subsystems.

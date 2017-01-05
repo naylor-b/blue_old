@@ -20,6 +20,8 @@ class MyExplicitComp(ExplicitComponent):
         self.add_input('x', val=np.zeros(2))
         self.add_input('y', val=np.zeros(2))
         self.add_output('f', val=np.zeros(2))
+        
+        self.set_subjac_info('f', ['x','y'])
 
     def compute(self, inputs, outputs):
         x = inputs['x']

@@ -22,9 +22,11 @@ class Jacobian(object):
     _system : <System>
         pointer to the system that is currently operating on this Jacobian.
     _out_dict : dict
-        dictionary containing the user-supplied internal sub-Jacobians.
+        dictionary containing the user-supplied internal sub-Jacobians. Has
+        keys of the form (out_ID, out_ID)
     _in_dict : dict
-        dictionary containing the user-supplied external sub-Jacobians.
+        dictionary containing the user-supplied external sub-Jacobians. Has
+        keys of the form (out_ID, in_ID).
     _int_mtx : <Matrix>
         global internal Jacobian.
     _ext_mtx : <Matrix>
@@ -62,6 +64,9 @@ class Jacobian(object):
 
     def _process_key(self, key):
         """Map output-input pair names to indices and sizes.
+
+        This assumes that no inputs and outputs share the same name,
+        so it should only be called from a Component, never from a Group.
 
         Args
         ----
@@ -101,10 +106,8 @@ class Jacobian(object):
             dct = self._out_dict
             typ = 'output'
         else:
-            in_size = 0
-            in_ind = -1
-            dct = None
-            typ = ''
+            raise RuntimeError("No indices found for output-input pair "
+                               "('%s', '%s')" % (out_name, in_name))
 
         return dct, out_ind, in_ind, out_size, in_size, typ
 

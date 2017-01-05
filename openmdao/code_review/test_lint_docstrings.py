@@ -30,7 +30,7 @@ class LintTestCase(unittest.TestCase):
 
         # Check if docstring is missing
         if doc is None:
-            self.fail('%s, %s : %s.%s ' %
+            self.fail('%s/%s:%s.%s ' %
                 (dir_name, file_name, class_name,
                  method_name) +
                 '... missing docstring')
@@ -45,7 +45,7 @@ class LintTestCase(unittest.TestCase):
 
             # Check if args section exists in docstrings
             if loc == -1:
-                self.fail('%s, %s : %s.%s ' %
+                self.fail('%s/%s:%s.%s ' %
                     (dir_name, file_name, class_name,
                      method_name) +
                     '... missing Args section in docstring')
@@ -72,27 +72,26 @@ class LintTestCase(unittest.TestCase):
                     if index < len(argspec.args) - 1:
                         arg = argspec.args[index+1]
                         ind = len(arg)
-                        valid = line[:ind] == arg
-                        valid = valid and line[ind:ind+3] == ' : '
+                        valid = line[:ind] == arg and line[ind:ind+3] == ' : '
                         if not valid:
-                            self.fail('%s, %s : %s.%s , %s ' %
-                                (dir_name, file_name, class_name,
-                                 method_name, arg) +
-                                '... formatting incorrect')
+                            self.fail("%s/%s:%s.%s : formatting of '%s' "
+                                      "arg incorrect" % (dir_name, file_name,
+                                                         class_name,
+                                                         method_name, arg))
                         index += 1
                     # If currently on varargs or kwargs
                     elif index < num_args:
                         index += 1
                     # If we've exceeded the counter
                     else:
-                        self.fail('%s, %s : %s.%s ' %
+                        self.fail('%s/%s:%s.%s ' %
                             (dir_name, file_name, class_name,
                              method_name) +
                             '... formatting incorrect ' +
                             'or too many arg docstrings')
             # If we haven't reached the end
             if index < num_args:
-                self.fail('%s, %s : %s.%s ' %
+                self.fail('%s/%s:%s.%s ' %
                     (dir_name, file_name, class_name,
                      method_name) +
                     'missing arg docstrings')

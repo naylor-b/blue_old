@@ -13,6 +13,7 @@ from openmdao.jacobians.default_jacobian import DefaultJacobian
 from openmdao.utils.generalized_dict import GeneralizedDictionary
 from openmdao.utils.class_util import overrides_method
 from openmdao.utils.units import conversion_to_base_units, convert_units
+from openmdao.devtools.compat import system_iter
 
 
 class System(object):
@@ -89,6 +90,11 @@ class System(object):
         transfer object; points to _vector_transfers[None].
     _jacobian : <Jacobian>
         global <Jacobian> object to be used in apply_linear
+    _subjacs_info : list of dict
+        Sub-jacobian metadata for each (output, input) pair added using
+        set_subjac_info.
+    _pre_setup_jac : <GlobalJacobian>
+        Storage for a GlobalJacobian that was set prior to problem setup.
     _nl_solver : <NonlinearSolver>
         nonlinear solver to be used for solve_nonlinear.
     _ln_solver : <LinearSolver>
@@ -151,6 +157,8 @@ class System(object):
         self._transfers = None
 
         self._jacobian = DefaultJacobian()
+        self._subjacs_info = []
+        self._pre_setup_jac = None
 
         self._nl_solver = None
         self._ln_solver = None
@@ -316,10 +324,9 @@ class System(object):
 
         # Populate the _var_allprocs_indices dictionary
         for typ in ['input', 'output']:
-            idx = self._var_allprocs_range[typ][0]
-            for name in self._var_allprocs_names[typ]:
-                self._var_allprocs_indices[typ][name] = idx
-                idx += 1
+            offset = self._var_allprocs_range[typ][0]
+            for idx, name in enumerate(self._var_allprocs_names[typ]):
+                self._var_allprocs_indices[typ][name] = idx + offset
 
     def _setup_connections(self):
         """Recursively assemble a list of input-output connections.
@@ -675,6 +682,14 @@ class System(object):
         is_top : boolean
             whether this is the top; i.e., start of the recursion.
         """
+        # Don't update jacobians if we haven't run setup yet.  Just store
+        # for later and update at the end of setup. _assember is set at
+        # the beginning of setup.  It is assumed here that set_jacobian
+        # will never be called (by a user) during setup.
+        if self._assembler is None:
+            self._pre_setup_jac = jacobian
+            return
+
         if jacobian is None:
             self._jacobian = DefaultJacobian()
         else:
@@ -684,13 +699,80 @@ class System(object):
                 self._jacobian._system = self
                 self._jacobian._assembler = self._assembler
 
+            # set info from our _jac_info
+            for key, meta, typ in self._subjac_meta_iter():
+                self._jacobian._set_subjac_info(key, meta, typ)
+
         for subsys in self._subsystems_myproc:
             subsys._set_jacobian(jacobian, False)
 
-        if jacobian is not None and is_top:
+        if is_top and jacobian is not None:
             self._linearize(True)
             self._jacobian._system = self
             self._jacobian._initialize()
+
+    def _subjac_meta_iter(self):
+        """Iterator over (of_idx, wrt_idx) pairs, their metadata and I/O type of wrt var.
+
+        Yields
+        ------
+        ((of_idx, wrt_idx), metadata, typ)
+            The metadata for each subjacobian.
+        """
+        indices = self._var_allprocs_indices
+
+        for of, wrt, meta in self._subjacs_info:
+            ofmatches = [n for n in self._var_allprocs_names['output']
+                         if n == of or fnmatchcase(n, of)]
+            for typ in ('input', 'output'):
+                for wrtname in self._var_allprocs_names[typ]:
+                    if wrtname == wrt or fnmatchcase(wrtname, wrt):
+                        for ofmatch in ofmatches:
+                            of_idx = indices['output'][ofmatch]
+                            wrt_idx = indices[typ][wrtname]
+                            yield ((of_idx, wrt_idx), meta, typ)
+
+    def set_subjac_info(self, of, wrt, rows=None, cols=None,
+                        approx=None, dependent=True, val=None):
+        """Store subjacobian metadata for later use.
+
+        Args
+        ----
+        of : str or list of str
+            The name of the residual(s) that derivatives are being computed for.
+            May also contain a glob pattern.
+        wrt : str or list of str
+            The name of the variables that derivatives are taken with respect to.
+            This can contain the name of any input or output variable.
+            May also contain a glob pattern.
+        rows : ndarray of int or None
+            Row indices for each nonzero entry.  For sparse subjacobians only.
+        cols : ndarray of int or None
+            Column indices for each nonzero entry.  For sparse subjacobians only.
+        approx : str(None)
+            Type of approximation ('fd' or 'cs') or None.
+        dependent : bool(True)
+            If False, specifies no dependence between the output(s) and the
+            input(s).
+        val : float or ndarray of float
+            Value of subjacobian.
+
+        """
+        if isinstance(outputs, str):
+            outputs = [outputs]
+        if isinstance(inputs, str):
+            inputs = [inputs]
+
+        for out in outputs:
+            for inp in inputs:
+                meta = {
+                    'rows': rows,
+                    'cols': cols,
+                    'approx': approx,
+                    'dependent': dependent,
+                    'val': val,
+                }
+                self._subjacs_info.append((out, inp, meta))
 
     def _apply_nonlinear(self):
         """Compute residuals."""
