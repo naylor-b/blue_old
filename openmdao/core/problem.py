@@ -182,7 +182,7 @@ class Problem(object):
         self.setup_vector('', vector_class, self._use_ref_vector)
 
         # check to see if a global jacobian was set prior to setup
-        for system in system_iter(root, include_self=True, recurse=True):
+        for system in root.system_iter(include_self=True, recurse=True):
             if system._pre_setup_jac is not None:
                 system.set_jacobian(system._pre_setup_jac)
                 system._pre_setup_jac = None

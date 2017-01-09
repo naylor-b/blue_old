@@ -123,14 +123,8 @@ class ExplicitComponent(Component):
             elif mode == 'rev':
                 d_residuals.set_vec(d_outputs)
 
-    def _linearize(self, initial=False):
-        """Compute jacobian / factorization.
-
-        Args
-        ----
-        initial : boolean
-            whether this is the initial call to assemble the Jacobian.
-        """
+    def _linearize(self):
+        """Compute jacobian / factorization."""
         self._jacobian._system = self
 
         self._inputs.scale(self._scaling_to_phys['input'])
@@ -142,19 +136,23 @@ class ExplicitComponent(Component):
         self._outputs.scale(self._scaling_to_norm['output'])
 
         for out_name in self._var_myproc_names['output']:
-            size = len(self._outputs._views_flat[out_name])
-            ones = numpy.ones(size)
-            arange = numpy.arange(size)
-            self._jacobian[out_name, out_name] = (ones, arange, arange)
-
-        for out_name in self._var_myproc_names['output']:
             for in_name in self._var_myproc_names['input']:
                 if (out_name, in_name) in self._jacobian:
                     self._jacobian._negate((out_name, in_name))
 
         self._jacobian._precompute_iter()
-        if not initial and self._jacobian._top_name == self.pathname:
+        if self._jacobian._top_name == self.pathname:
             self._jacobian._update()
+
+    def _set_subjac_infos(self):
+        """Sets subjacobian info into our jacobian."""
+        for out_name in self._var_myproc_names['output']:
+            size = numpy.prod(self._var2meta[out_name]['shape'])
+            arange = numpy.arange(size)
+            self.set_subjac_info(out_name, out_name,
+                                 val=[numpy.ones(size), arange, arange])
+
+        super(ExplicitComponent, self)._set_subjac_infos()
 
     def compute(self, inputs, outputs):
         """Compute outputs given inputs.

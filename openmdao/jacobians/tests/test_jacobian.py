@@ -52,6 +52,8 @@ class MyExplicitComp2(ExplicitComponent):
         self.add_input('w', val=np.zeros(3))
         self.add_input('z', val=0.0)
         self.add_output('f', val=0.0)
+        
+        self.set_subjac_info('f', 'z', val=self._jac_type(np.array([[7.]])))
 
     def compute(self, inputs, outputs):
         w = inputs['w']
@@ -67,9 +69,9 @@ class MyExplicitComp2(ExplicitComponent):
             6.
         ]]))
 
-        jacobian['f', 'z'] = self._jac_type(np.array([[
-            7.
-        ]]))
+        #jacobian['f', 'z'] = self._jac_type(np.array([[
+            #7.
+        #]]))
 
 
 def arr2list(arr):

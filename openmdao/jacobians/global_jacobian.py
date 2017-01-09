@@ -15,8 +15,10 @@ class GlobalJacobian(Jacobian):
 
     Attributes
     ----------
-    _subjacs_info : dict
-        Dict of subjacobian metadata keyed on (output_idx, input_idx).
+    _subjacs_in_info : dict
+        Dict of subjacobian metadata keyed on (resid_idx, input_idx).
+    _subjacs_out_info : dict
+        Dict of subjacobian metadata keyed on (resid_idx, output_idx).
     """
 
     def __init__(self, **kwargs):
@@ -32,8 +34,10 @@ class GlobalJacobian(Jacobian):
                              desc='<Matrix> class to use in this <Jacobian>.')
         self.options.update(kwargs)
 
-        # dict of subjacobian metadata keyed by (out_index, in_index)
-        self._subjacs_info = {}
+        # dicts of subjacobian metadata keyed by (resid_index, in_index)
+        # and (resid_index, out_index) respectively
+        self._subjacs_in_info = {}
+        self._subjacs_out_info = {}
 
     def _get_var_range(self, ivar_all, typ):
         """Look up the variable name and <Jacobian> index range.
@@ -83,24 +87,25 @@ class GlobalJacobian(Jacobian):
 
             for out_idx_all in var_indices['output']:
                 key = (re_idx_all, out_idx_all)
-                if key in self._out_dict:
-                    jac = self._out_dict[key]
+                if key in self._subjacs_out_info:
+                    info = self._subjacs_out_info[key]
 
-                    self._int_mtx._out_add_submat(
-                        key, jac, re_offset, out_offsets[out_idx_all])
+                    self._int_mtx._out_submats[key] = (info, re_offset,
+                                                       out_offsets[out_idx_all],
+                                                       None)
 
             for in_idx_all in var_indices['input']:
                 key = (re_idx_all, in_idx_all)
-                if key in self._in_dict:
-                    jac = self._in_dict[key]
+                if key in self._subjacs_in_info:
+                    info = self._subjacs_in_info[key]
 
                     out_idx_all = self._assembler._input_src_ids[in_idx_all]
                     if ivar1 <= out_idx_all < ivar2:
                         if src_indices[in_idx_all] is None:
                             self._keymap[key] = key
-                            self._int_mtx._in_add_submat(
-                                key, jac, re_offset, out_offsets[out_idx_all],
-                                None)
+                            self._int_mtx._in_submats[key] = (info, re_offset,
+                                                              out_offsets[out_idx_all],
+                                                              None)
                         else:
                             # need to add an entry for d(output)/d(source)
                             # instead of d(output)/d(input) when we have
@@ -108,12 +113,13 @@ class GlobalJacobian(Jacobian):
                             key2 = (key[0],
                                     self._assembler._input_src_ids[in_idx_all])
                             self._keymap[key] = key2
-                            self._int_mtx._in_add_submat(
-                                key2, jac, re_offset, out_offsets[out_idx_all],
-                                src_indices[in_idx_all])
+                            self._int_mtx._in_submats[key2] = (info, re_offset,
+                                                               out_offsets[out_idx_all],
+                                                               src_indices[in_idx_all])
                     else:
-                        self._ext_mtx._in_add_submat(
-                            key, jac, re_offset, in_offsets[in_idx_all], None)
+                        self._ext_mtx._in_submats[key] = (info, re_offset,
+                                                          in_offsets[in_idx_all],
+                                                          None)
 
         out_size = numpy.sum(
             self._assembler._variable_sizes_all['output'][ivar1:ivar2])
@@ -185,6 +191,6 @@ class GlobalJacobian(Jacobian):
             Indictates the I/O type of the wrt variable.
         """
         if typ == 'input':
-            self._in_info[key] = meta
+            self._subjacs_in_info[key] = meta
         else:
-            self._out_info[key] = meta
+            self._subjacs_out_info[key] = meta

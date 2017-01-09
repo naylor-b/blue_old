@@ -82,41 +82,6 @@ class Matrix(object):
 
         return self._prod(in_vec, 'rev')
 
-    def _out_add_submat(self, key, jac, irow, icol):
-        """Declare a sub-jacobian.
-
-        Args
-        ----
-        key : (int, int)
-            the global output and input variable indices.
-        jac : ndarray or scipy.sparse or tuple
-            the sub-jacobian.
-        irow : int
-            the starting row index (offset) for this sub-jacobian.
-        icol : int
-            the starting col index (offset) for this sub-jacobian.
-        """
-        self._out_submats[key] = (jac, irow, icol, None)
-
-    def _in_add_submat(self, key, jac, irow, icol, src_indices):
-        """Declare a sub-jacobian.
-
-        Args
-        ----
-        key : (int, int)
-            the global output and input variable indices.
-        jac : ndarray or scipy.sparse or tuple
-            the sub-jacobian.
-        irow : int
-            the starting row index (offset) for this sub-jacobian.
-        icol : int
-            the starting col index (offset) for this sub-jacobian.
-        src_indices : ndarray
-            indices from the source variable that an input variable
-            connects to.
-        """
-        self._in_submats[key] = (jac, irow, icol, src_indices)
-
     def _out_update_submat(self, key, jac):
         """Update the values of a sub-jacobian.
 

@@ -7,13 +7,13 @@ from contextlib import contextmanager
 import numpy
 
 from six.moves import range
+from six import string_types
 
 from openmdao.proc_allocators.default_allocator import DefaultAllocator
 from openmdao.jacobians.default_jacobian import DefaultJacobian
 from openmdao.utils.generalized_dict import GeneralizedDictionary
 from openmdao.utils.class_util import overrides_method
 from openmdao.utils.units import conversion_to_base_units, convert_units
-from openmdao.devtools.compat import system_iter
 
 
 class System(object):
@@ -699,26 +699,18 @@ class System(object):
                 self._jacobian._system = self
                 self._jacobian._assembler = self._assembler
 
-            # set info from our _jac_info
-            for key, meta, typ in self._subjac_meta_iter():
-                self._jacobian._set_subjac_info(key, meta, typ)
+            # set info from our _subjacs_info
+            self._set_subjac_infos()
 
         for subsys in self._subsystems_myproc:
             subsys._set_jacobian(jacobian, False)
 
         if is_top and jacobian is not None:
-            self._linearize(True)
             self._jacobian._system = self
             self._jacobian._initialize()
 
-    def _subjac_meta_iter(self):
-        """Iterator over (of_idx, wrt_idx) pairs, their metadata and I/O type of wrt var.
-
-        Yields
-        ------
-        ((of_idx, wrt_idx), metadata, typ)
-            The metadata for each subjacobian.
-        """
+    def _set_subjac_infos(self):
+        """Sets subjacobian info into our jacobian."""
         indices = self._var_allprocs_indices
 
         for of, wrt, meta in self._subjacs_info:
@@ -730,49 +722,43 @@ class System(object):
                         for ofmatch in ofmatches:
                             of_idx = indices['output'][ofmatch]
                             wrt_idx = indices[typ][wrtname]
-                            yield ((of_idx, wrt_idx), meta, typ)
+                            self._jacobian._set_subjac_info((of_idx, wrt_idx),
+                                                            meta, typ)
 
-    def set_subjac_info(self, of, wrt, rows=None, cols=None,
-                        approx=None, dependent=True, val=None):
-        """Store subjacobian metadata for later use.
+    def system_iter(self, local=True, include_self=False, recurse=True,
+                    typ=None):
+        """A generator of ancestor systems of this system.
 
         Args
         ----
-        of : str or list of str
-            The name of the residual(s) that derivatives are being computed for.
-            May also contain a glob pattern.
-        wrt : str or list of str
-            The name of the variables that derivatives are taken with respect to.
-            This can contain the name of any input or output variable.
-            May also contain a glob pattern.
-        rows : ndarray of int or None
-            Row indices for each nonzero entry.  For sparse subjacobians only.
-        cols : ndarray of int or None
-            Column indices for each nonzero entry.  For sparse subjacobians only.
-        approx : str(None)
-            Type of approximation ('fd' or 'cs') or None.
-        dependent : bool(True)
-            If False, specifies no dependence between the output(s) and the
-            input(s).
-        val : float or ndarray of float
-            Value of subjacobian.
+        local : bool (True)
+            If True, only iterate over systems on this proc.
 
+        include_self : bool (False)
+            If True, include this system in the iteration.
+
+        recurse : bool (True)
+            If True, iterate over the whole tree under this system.
+
+        typ : type
+            If not None, only yield Systems that match that are instances of the
+            given type.
         """
-        if isinstance(outputs, str):
-            outputs = [outputs]
-        if isinstance(inputs, str):
-            inputs = [inputs]
+        if local:
+            sysiter = self._subsystems_myproc
+        else:
+            sysiter = self._subsystems_allprocs
 
-        for out in outputs:
-            for inp in inputs:
-                meta = {
-                    'rows': rows,
-                    'cols': cols,
-                    'approx': approx,
-                    'dependent': dependent,
-                    'val': val,
-                }
-                self._subjacs_info.append((out, inp, meta))
+        if include_self:
+            if typ is None or isinstance(self, typ):
+                yield self
+
+        for s in sysiter:
+            if typ is None or isinstance(s, typ):
+                yield s
+            if recurse:
+                for sub in s.system_iter(local=local, recurse=True, typ=typ):
+                    yield sub
 
     def _apply_nonlinear(self):
         """Compute residuals."""
@@ -828,14 +814,8 @@ class System(object):
         """
         pass
 
-    def _linearize(self, initial=False):
-        """Compute jacobian / factorization.
-
-        Args
-        ----
-        initial : boolean
-            whether this is the initial call to assemble the Jacobian.
-        """
+    def _linearize(self):
+        """Compute jacobian / factorization."""
         pass
 
     def get_system(self, name):

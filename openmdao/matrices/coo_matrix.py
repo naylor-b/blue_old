@@ -35,15 +35,24 @@ class CooMatrix(Matrix):
 
         for submats, metadata in submat_meta_iter:
             for key in submats:
-                jac = submats[key][0]
-
+                info = submats[key][0]
+                value = info['value']
                 ind1 = counter
-                if isinstance(jac, ndarray):
-                    counter += jac.size
-                elif isinstance(jac, (coo_matrix, csr_matrix)):
-                    counter += jac.data.size
-                elif isinstance(jac, list):
-                    counter += len(jac[0])
+
+                if value is not None:
+                    jac = info['value']
+                    if isinstance(jac, ndarray):
+                        counter += jac.size
+                    elif isinstance(jac, (coo_matrix, csr_matrix)):
+                        counter += jac.data.size
+                    elif isinstance(jac, list):
+                        counter += len(jac[0])
+                else:
+                    if info['rows'] is None:  # dense subjac
+                        counter += numpy.prod(info['shape'])
+                    else:
+                        counter += len(info['rows'])
+
                 ind2 = counter
                 metadata[key] = (ind1, ind2)
 
@@ -53,15 +62,20 @@ class CooMatrix(Matrix):
 
         for submats, metadata in submat_meta_iter:
             for key in submats:
-                jac, irow, icol, src_indices = submats[key]
+                info, irow, icol, src_indices = submats[key]
+                shape = info['shape']
+                jac = info['value']
+                dense = ((info['rows'] is None and jac is None) or 
+                         isinstance(jac, ndarray))
+
                 ind1, ind2 = metadata[key]
                 idxs = None
 
-                if isinstance(jac, ndarray):
-                    rowrange = numpy.arange(jac.shape[0], dtype=int)
+                if dense:
+                    rowrange = numpy.arange(shape[0], dtype=int)
 
                     if src_indices is None:
-                        colrange = numpy.arange(jac.shape[1], dtype=int)
+                        colrange = numpy.arange(shape[1], dtype=int)
                     else:
                         colrange = numpy.array(src_indices, dtype=int)
 
@@ -75,34 +89,36 @@ class CooMatrix(Matrix):
 
                     rows[ind1:ind2] += irow
                     cols[ind1:ind2] += icol
-                    data[ind1:ind2] = jac.flat
 
-                elif isinstance(jac, (coo_matrix, csr_matrix)):
-                    coojac = jac.tocoo()
+                    if jac is not None:
+                        data[ind1:ind2] = jac.flat
+
+                else:  #  sparse
+                    if isinstance(jac, (coo_matrix, csr_matrix)):
+                        jac = jac.tocoo()
+                        jdata = jac.data
+                        jrows = jac.row
+                        jcols = jac.col
+                    elif isinstance(jac, list):
+                        jdata = jac[0]
+                        jrows = jac[1]
+                        jcols = jac[2]
+                    else:  # value not provided
+                        jdata = None
+                        jrows = info['rows']
+                        jcols = info['cols']
+
                     if src_indices is None:
-                        data[ind1:ind2] = coojac.data
-                        rows[ind1:ind2] = coojac.row + irow
-                        cols[ind1:ind2] = coojac.col + icol
+                        if jdata is not None:
+                            data[ind1:ind2] = jdata
+                        rows[ind1:ind2] = jrows + irow
+                        cols[ind1:ind2] = jcols + icol
                     else:
-                        irows, icols, idxs = _compute_index_map(coojac.row,
-                                                                coojac.col,
+                        irows, icols, idxs = _compute_index_map(jrows, jcols,
                                                                 irow, icol,
                                                                 src_indices)
-                        data[ind1:ind2] = jac.data[idxs]
-                        rows[ind1:ind2] = irows
-                        cols[ind1:ind2] = icols
-
-                elif isinstance(jac, list):
-                    if src_indices is None:
-                        data[ind1:ind2] = jac[0]
-                        rows[ind1:ind2] = irow + jac[1]
-                        cols[ind1:ind2] = icol + jac[2]
-                    else:
-                        irows, icols, idxs = _compute_index_map(jac[1],
-                                                                jac[2],
-                                                                irow, icol,
-                                                                src_indices)
-                        data[ind1:ind2] = jac[0][idxs]
+                        if jdata is not None:
+                            data[ind1:ind2] = jdata[idxs]
                         rows[ind1:ind2] = irows
                         cols[ind1:ind2] = icols
 

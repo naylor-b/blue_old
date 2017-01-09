@@ -25,7 +25,7 @@ class DenseMatrix(Matrix):
 
         for submats, metadata in submat_meta_iter:
             for key in submats:
-                jac, irow, icol, src_indices = submats[key]
+                info, irow, icol, src_indices = submats[key]
 
                 if isinstance(jac, numpy.ndarray):
                     nrows, ncols = jac.shape

@@ -11,7 +11,13 @@ from openmdao.core.system import System
 
 
 class Component(System):
-    """Base Component class; not to be directly instantiated."""
+    """Base Component class; not to be directly instantiated.
+
+    Attributes
+    ----------
+    _var2meta : dict
+        A mapping of local variable name to its metadata.
+    """
 
     INPUT_DEFAULTS = {
         'shape': (1,),
@@ -32,6 +38,17 @@ class Component(System):
         'res_ref': 1.0,
         'res_ref0': 0.0,
     }
+
+    def __init__(self, **kwargs):
+        """Initialize all attributes.
+
+        Args
+        ----
+        **kwargs: dict of keyword arguments
+            available here and in all descendants of this system.
+        """
+        super(Component, self).__init__(**kwargs)
+        self._var2meta = {}
 
     def add_input(self, name, val=1.0, **kwargs):
         """Add an input variable to the component.
@@ -58,6 +75,7 @@ class Component(System):
         self._var_allprocs_names['input'].append(name)
         self._var_myproc_names['input'].append(name)
         self._var_myproc_metadata['input'].append(metadata)
+        self._var2meta[name] = metadata
 
         # add this here even though we don't know the index yet, so we
         # can use the dict for fast containment checks later.
@@ -85,10 +103,56 @@ class Component(System):
         self._var_allprocs_names['output'].append(name)
         self._var_myproc_names['output'].append(name)
         self._var_myproc_metadata['output'].append(metadata)
+        self._var2meta[name] = metadata
 
         # add this here even though we don't know the index yet, so we
         # can use the dict for fast containment checks later.
         self._var_allprocs_indices['output'][name] = None
+
+    def set_subjac_info(self, of, wrt, rows=None, cols=None,
+                        approx=None, dependent=True, val=None):
+        """Store subjacobian metadata for later use.
+
+        Args
+        ----
+        of : str or list of str
+            The name of the residual(s) that derivatives are being computed for.
+            May also contain a glob pattern.
+        wrt : str or list of str
+            The name of the variables that derivatives are taken with respect to.
+            This can contain the name of any input or output variable.
+            May also contain a glob pattern.
+        rows : ndarray of int or None
+            Row indices for each nonzero entry.  For sparse subjacobians only.
+        cols : ndarray of int or None
+            Column indices for each nonzero entry.  For sparse subjacobians only.
+        approx : str(None)
+            Type of approximation ('fd' or 'cs') or None.
+        dependent : bool(True)
+            If False, specifies no dependence between the output(s) and the
+            input(s).
+        val : float or ndarray of float
+            Value of subjacobian.
+
+        """
+        oflist = [of] if isinstance(of, string_types) else of
+        wrtlist = [wrt] if isinstance(wrt, string_types) else wrt
+
+        for of in oflist:
+            for wrt in wrtlist:
+                meta = {
+                    'rows': rows,
+                    'cols': cols,
+                    'approx': approx,
+                    'dependent': dependent,
+                    'value': val,
+                }
+
+                # set shape metadata
+                ofsize = numpy.prod(self._var2meta[of]['shape'])
+                wrtsize = numpy.prod(self._var2meta[wrt]['shape'])
+                meta['shape'] = (ofsize, wrtsize)
+                self._subjacs_info.append((of, wrt, meta))
 
     def _setup_vector(self, vectors, vector_var_ids, use_ref_vector):
         r"""Add this vector and assign sub_vectors to subsystems.

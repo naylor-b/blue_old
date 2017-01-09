@@ -14,7 +14,7 @@ from __future__ import division, print_function
 import re
 import os.path
 from collections import OrderedDict
-from six import iteritems
+from six import iteritems, string_types
 from six.moves.configparser import RawConfigParser as ConfigParser
 
 # pylint: disable=E0611, F0401
@@ -226,7 +226,7 @@ class PhysicalUnit(object):
         offset : float
             An additive offset to the base unit (used only for temperatures).
         """
-        if isinstance(names, str):
+        if isinstance(names, string_types):
             self._names = NumberDict(((names, 1),))
         else:
             self._names = names
@@ -587,7 +587,7 @@ def add_offset_unit(name, baseunit, factor, offset, comment=''):
     comment : str
         optional comment to describe unit
     """
-    if isinstance(baseunit, str):
+    if isinstance(baseunit, string_types):
         baseunit = _find_unit(baseunit)
     # else, baseunit should be a instance of PhysicalUnit
     # names, factor, powers, offset=0
@@ -617,7 +617,7 @@ def add_unit(name, unit, comment=''):
     """
     if comment:
         _UNIT_LIB.help.append((name, comment, unit))
-    if isinstance(unit, str):
+    if isinstance(unit, string_types):
         unit = eval(unit, {'__builtins__': None, 'pi': pi},
                     _UNIT_LIB.unit_table)
     unit.set_name(name)
@@ -790,7 +790,7 @@ def _find_unit(unit):
     PhysicalUnit
         The actual unit object
     """
-    if isinstance(unit, str):
+    if isinstance(unit, string_types):
         name = unit.strip()
         try:
             unit = _UNIT_CACHE[name]

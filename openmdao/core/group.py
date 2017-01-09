@@ -295,19 +295,13 @@ class Group(System):
         """
         return self._ln_solver(vec_names, mode)
 
-    def _linearize(self, initial=False):
-        """Compute jacobian / factorization.
-
-        Args
-        ----
-        initial : boolean
-            whether this is the initial call to assemble the Jacobian.
-        """
+    def _linearize(self):
+        """Compute jacobian / factorization."""
         for subsys in self._subsystems_myproc:
             subsys._linearize()
 
         # Update jacobian
-        if not initial and self._jacobian._top_name == self.pathname:
+        if self._jacobian._top_name == self.pathname:
             self._jacobian._system = self
             self._jacobian._update()
             self._jacobian._precompute_iter()
