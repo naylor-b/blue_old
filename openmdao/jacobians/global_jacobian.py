@@ -113,9 +113,9 @@ class GlobalJacobian(Jacobian):
                             # src_indices
                             key2 = (key[0], out_idx_all)
                             self._keymap[key] = key2
-                            self._int_mtx._out_submats[key2] = (info, re_offset,
-                                                                out_offsets[out_idx_all],
-                                                                src_indices[in_idx_all])
+                            self._int_mtx._in_submats[key2] = (info, re_offset,
+                                                               out_offsets[out_idx_all],
+                                                               src_indices[in_idx_all])
                     else:
                         self._ext_mtx._in_submats[key] = (info, re_offset,
                                                           in_offsets[in_idx_all],
