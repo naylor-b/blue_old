@@ -109,8 +109,9 @@ class Component(System):
         # can use the dict for fast containment checks later.
         self._var_allprocs_indices['output'][name] = None
 
-    def set_subjac_info(self, of, wrt, rows=None, cols=None,
-                        approx=None, dependent=True, val=None):
+    def set_subjac_info(self, of='*', wrt='*', rows=None, cols=None, val=None,
+                        approx=None, step=1.e-3, form='forward',
+                        dependent=True):
         """Store subjacobian metadata for later use.
 
         Args
@@ -126,17 +127,33 @@ class Component(System):
             Row indices for each nonzero entry.  For sparse subjacobians only.
         cols : ndarray of int or None
             Column indices for each nonzero entry.  For sparse subjacobians only.
+        val : float or ndarray of float
+            Value of subjacobian.  If rows and cols are not None, this will
+            contain the values found at each (row, col) location in the subjac.
         approx : str(None)
             Type of approximation ('fd' or 'cs') or None.
+        step : float
+            Step size used for approximation (if approx is not None).
+        form : str
+            Form used for fd ('forward', 'central', 'backward').
         dependent : bool(True)
             If False, specifies no dependence between the output(s) and the
-            input(s).
-        val : float or ndarray of float
-            Value of subjacobian.
+            input(s). This is only necessary in the case of a sparse global
+            jacobian, because if 'dependent=False' is not specified and
+            set_subjac_info is not called for a given pair, then a dense
+            matrix of zeros will be allocated in the sparse global jacobian
+            for that pair.  In the case of a dense global jacobian it doesn't
+            matter because the space for a dense subjac will always be
+            allocated for every pair.
 
         """
         oflist = [of] if isinstance(of, string_types) else of
         wrtlist = [wrt] if isinstance(wrt, string_types) else wrt
+
+        if isinstance(rows, (list, tuple)):
+            rows = numpy.array(rows, dtype=int)
+        if isinstance(cols, (list, tuple)):
+            cols = numpy.array(cols, dtype=int)
 
         for of in oflist:
             for wrt in wrtlist:

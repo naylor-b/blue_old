@@ -59,6 +59,8 @@ class Jacobian(object):
         self._keymap = {}
         self._iter_list = []
 
+        self._explicit = False  # True when computing jac for ExplicitComponent
+
         self.options = OptionsDictionary()
         self.options.update(kwargs)
 
@@ -189,7 +191,7 @@ class Jacobian(object):
         ----
         key : (str, str)
             output name, input name of sub-Jacobian.
-        jac : int or float or ndarray or list[3] or tuple[3]
+        jac : int or float or ndarray or sparse matrix
             sub-Jacobian as a scalar, vector, array, or AIJ list or tuple.
         """
         system = self._system
@@ -224,6 +226,8 @@ class Jacobian(object):
             jac[0] *= r_factor / c_factor
 
         dct[out_ind, in_ind] = jac
+
+        self._system._post_jac_setitem(key)
 
     def __getitem__(self, key):
         """Get sub-Jacobian.

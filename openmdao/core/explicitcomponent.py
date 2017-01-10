@@ -130,15 +130,14 @@ class ExplicitComponent(Component):
         self._inputs.scale(self._scaling_to_phys['input'])
         self._outputs.scale(self._scaling_to_phys['output'])
 
-        self.compute_jacobian(self._inputs, self._outputs, self._jacobian)
+        self._jacobian._explicit = True
+        try:
+            self.compute_jacobian(self._inputs, self._outputs, self._jacobian)
+        finally:
+            self._jacobian._explicit = False
 
         self._inputs.scale(self._scaling_to_norm['input'])
         self._outputs.scale(self._scaling_to_norm['output'])
-
-        for out_name in self._var_myproc_names['output']:
-            for in_name in self._var_myproc_names['input']:
-                if (out_name, in_name) in self._jacobian:
-                    self._jacobian._negate((out_name, in_name))
 
         self._jacobian._precompute_iter()
         if self._jacobian._top_name == self.pathname:
@@ -150,9 +149,20 @@ class ExplicitComponent(Component):
             size = numpy.prod(self._var2meta[out_name]['shape'])
             arange = numpy.arange(size)
             self.set_subjac_info(out_name, out_name,
-                                 val=[numpy.ones(size), arange, arange])
+                                 rows=arange, cols=arange,
+                                 val=numpy.ones(size))
 
         super(ExplicitComponent, self)._set_subjac_infos()
+
+    def _post_jac_setitem(self, key):
+        """Overridden in ExplicitComponent.
+
+        Args
+        ----
+        key : (str, str)
+            of name, wrt name of sub-Jacobian.
+        """
+        self._jacobian._negate(key)
 
     def compute(self, inputs, outputs):
         """Compute outputs given inputs.

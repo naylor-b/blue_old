@@ -96,13 +96,14 @@ class GlobalJacobian(Jacobian):
 
             for in_idx_all in var_indices['input']:
                 key = (re_idx_all, in_idx_all)
+                self._keymap[key] = key
+
                 if key in self._subjacs_in_info:
                     info = self._subjacs_in_info[key]
 
                     out_idx_all = self._assembler._input_src_ids[in_idx_all]
                     if ivar1 <= out_idx_all < ivar2:
                         if src_indices[in_idx_all] is None:
-                            self._keymap[key] = key
                             self._int_mtx._in_submats[key] = (info, re_offset,
                                                               out_offsets[out_idx_all],
                                                               None)
@@ -110,12 +111,11 @@ class GlobalJacobian(Jacobian):
                             # need to add an entry for d(output)/d(source)
                             # instead of d(output)/d(input) when we have
                             # src_indices
-                            key2 = (key[0],
-                                    self._assembler._input_src_ids[in_idx_all])
+                            key2 = (key[0], out_idx_all)
                             self._keymap[key] = key2
-                            self._int_mtx._in_submats[key2] = (info, re_offset,
-                                                               out_offsets[out_idx_all],
-                                                               src_indices[in_idx_all])
+                            self._int_mtx._out_submats[key2] = (info, re_offset,
+                                                                out_offsets[out_idx_all],
+                                                                src_indices[in_idx_all])
                     else:
                         self._ext_mtx._in_submats[key] = (info, re_offset,
                                                           in_offsets[in_idx_all],
@@ -178,12 +178,14 @@ class GlobalJacobian(Jacobian):
             d_outputs.iadd_data(int_mtx._prod(d_residuals.get_data(), mode))
             d_inputs.iadd_data(ext_mtx._prod(d_residuals.get_data(), mode))
 
-    def _set_subjac_info(self, key, meta, typ):
+    def _set_subjac_info(self, strkey, idxkey, meta, typ):
         """Store subjacobian metadata.
 
         Args
         ----
-        key : (of, wrt)
+        strkey : (ofname, wrtname)
+            A pair of names used as key for __setitem__.
+        idxkey : (of, wrt)
             A pair of indices used to key into the info dicts.
         meta : dict
             Metadata dictionary for the subjacobian.
@@ -191,6 +193,12 @@ class GlobalJacobian(Jacobian):
             Indictates the I/O type of the wrt variable.
         """
         if typ == 'input':
-            self._subjacs_in_info[key] = meta
+            self._subjacs_in_info[idxkey] = meta
         else:
-            self._subjacs_out_info[key] = meta
+            self._subjacs_out_info[idxkey] = meta
+
+        val = meta['value']
+        if val is not None:
+            if meta['rows'] is not None:
+                val = [val, meta['rows'], meta['cols']]
+            self.__setitem__(strkey, val)

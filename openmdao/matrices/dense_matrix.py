@@ -26,9 +26,14 @@ class DenseMatrix(Matrix):
         for submats, metadata in submat_meta_iter:
             for key in submats:
                 info, irow, icol, src_indices = submats[key]
+                rows = info['rows']
+                cols = info['cols']
+                val = info['value']
+                shape = info['shape']
 
-                if isinstance(jac, numpy.ndarray):
-                    nrows, ncols = jac.shape
+                if rows is None and (val is None or isinstance(val,
+                                                               numpy.ndarray)):
+                    nrows, ncols = shape
                     irow2 = irow + nrows
                     if src_indices is None:
                         icol2 = icol + ncols
@@ -39,9 +44,10 @@ class DenseMatrix(Matrix):
                                          src_indices + icol)
 
                     irows, icols = metadata[key]
-                    matrix[irows, icols] = jac
-                elif isinstance(jac, (coo_matrix, csr_matrix)):
-                    jac = jac.tocoo()
+                    if val is not None:
+                        matrix[irows, icols] = val
+                elif isinstance(val, (coo_matrix, csr_matrix)):
+                    jac = val.tocoo()
                     if src_indices is None:
                         irows = irow + jac.row
                         icols = icol + jac.col
@@ -56,19 +62,19 @@ class DenseMatrix(Matrix):
                     metadata[key] = (irows, icols)
                     matrix[irows, icols] = jac.data
 
-                elif isinstance(jac, list):
+                elif rows is not None:
                     if src_indices is None:
-                        irows = jac[1] + irow
-                        icols = jac[2] + icol
+                        irows = rows + irow
+                        icols = cols + icol
                     else:
-                        irows, icols, idxs = _compute_index_map(jac[1], jac[2],
+                        irows, icols, idxs = _compute_index_map(rows, cols,
                                                                 irow, icol,
                                                                 src_indices)
                         revidxs = numpy.argsort(idxs)
                         irows, icols = irows[revidxs], icols[revidxs]
 
                     metadata[key] = (irows, icols)
-                    matrix[irows, icols] = jac[0]
+                    matrix[irows, icols] = val
 
         self._matrix = matrix
 

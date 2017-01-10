@@ -712,6 +712,7 @@ class System(object):
     def _set_subjac_infos(self):
         """Sets subjacobian info into our jacobian."""
         indices = self._var_allprocs_indices
+        self._jacobian._system = self
 
         for of, wrt, meta in self._subjacs_info:
             ofmatches = [n for n in self._var_allprocs_names['output']
@@ -722,12 +723,24 @@ class System(object):
                         for ofmatch in ofmatches:
                             of_idx = indices['output'][ofmatch]
                             wrt_idx = indices[typ][wrtname]
-                            self._jacobian._set_subjac_info((of_idx, wrt_idx),
+                            strkey = (ofmatch, wrtname)
+                            self._jacobian._set_subjac_info(strkey,
+                                                            (of_idx, wrt_idx),
                                                             meta, typ)
+
+    def _post_jac_setitem(self, key):
+        """Overridden in ExplicitComponent.
+
+        Args
+        ----
+        key : (str, str)
+            of name, wrt name of sub-Jacobian.
+        """
+        pass
 
     def system_iter(self, local=True, include_self=False, recurse=True,
                     typ=None):
-        """A generator of ancestor systems of this system.
+        """A generator of subsystems of this system.
 
         Args
         ----

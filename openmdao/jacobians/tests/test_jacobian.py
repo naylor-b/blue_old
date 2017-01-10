@@ -20,7 +20,7 @@ class MyExplicitComp(ExplicitComponent):
         self.add_input('x', val=np.zeros(2))
         self.add_input('y', val=np.zeros(2))
         self.add_output('f', val=np.zeros(2))
-        
+
         self.set_subjac_info('f', ['x','y'])
 
     def compute(self, inputs, outputs):
@@ -52,8 +52,12 @@ class MyExplicitComp2(ExplicitComponent):
         self.add_input('w', val=np.zeros(3))
         self.add_input('z', val=0.0)
         self.add_output('f', val=0.0)
-        
-        self.set_subjac_info('f', 'z', val=self._jac_type(np.array([[7.]])))
+
+        val=self._jac_type(np.array([[7.]]))
+        if isinstance(val, list):
+            self.set_subjac_info('f', 'z', rows=val[1], cols=val[2], val=val[0])
+        else:
+            self.set_subjac_info('f', 'z', val=val)
 
     def compute(self, inputs, outputs):
         w = inputs['w']
