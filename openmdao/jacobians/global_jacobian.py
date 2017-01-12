@@ -69,7 +69,9 @@ class GlobalJacobian(Jacobian):
         """Allocate the global matrices."""
         # var_indices are the *global* indices for variables on this proc
         var_indices = self._system._var_myproc_indices
-        meta = self._system._var_myproc_metadata['input']
+        meta_in = self._system._var_myproc_metadata['input']
+        meta_out = self._system._var_myproc_metadata['output']
+        out_names = self._system._var_allprocs_names['output']
         ivar1, ivar2 = self._system._var_allprocs_range['output']
 
         self._int_mtx = self.options['matrix_class'](self._system.comm)
@@ -79,7 +81,7 @@ class GlobalJacobian(Jacobian):
                        for i in var_indices['output']}
         in_offsets = {i: self._get_var_range(i, 'input')[0]
                       for i in var_indices['input']}
-        src_indices = {i: meta[j]['indices']
+        src_indices = {i: meta_in[j]['indices']
                        for j, i in enumerate(var_indices['input'])}
 
         for re_idx_all in var_indices['output']:
@@ -88,38 +90,43 @@ class GlobalJacobian(Jacobian):
             for out_idx_all in var_indices['output']:
                 key = (re_idx_all, out_idx_all)
                 if key in self._subjacs_out_info:
-                    info = self._subjacs_out_info[key]
+                    info, shape = self._subjacs_out_info[key]
 
                     self._int_mtx._out_submats[key] = (info, re_offset,
                                                        out_offsets[out_idx_all],
-                                                       None)
+                                                       None, shape)
 
             for in_idx_all in var_indices['input']:
                 key = (re_idx_all, in_idx_all)
                 self._keymap[key] = key
 
                 if key in self._subjacs_in_info:
-                    info = self._subjacs_in_info[key]
+                    info, shape = self._subjacs_in_info[key]
 
                     out_idx_all = self._assembler._input_src_ids[in_idx_all]
                     if ivar1 <= out_idx_all < ivar2:
                         if src_indices[in_idx_all] is None:
-                            self._int_mtx._in_submats[key] = (info, re_offset,
-                                                              out_offsets[out_idx_all],
-                                                              None)
+                            self._int_mtx._in_submats[key] = (
+                                                    info, re_offset,
+                                                    out_offsets[out_idx_all],
+                                                    None, shape)
                         else:
                             # need to add an entry for d(output)/d(source)
                             # instead of d(output)/d(input) when we have
                             # src_indices
                             key2 = (key[0], out_idx_all)
                             self._keymap[key] = key2
-                            self._int_mtx._in_submats[key2] = (info, re_offset,
-                                                               out_offsets[out_idx_all],
-                                                               src_indices[in_idx_all])
+                            outsize = self._system._outputs._views_flat[
+                                                out_names[out_idx_all]].size
+                            self._int_mtx._in_submats[key2] = (
+                                                    info, re_offset,
+                                                    out_offsets[out_idx_all],
+                                                    src_indices[in_idx_all],
+                                                    (shape[0], outsize))
                     else:
                         self._ext_mtx._in_submats[key] = (info, re_offset,
                                                           in_offsets[in_idx_all],
-                                                          None)
+                                                          None, shape)
 
         out_size = numpy.sum(
             self._assembler._variable_sizes_all['output'][ivar1:ivar2])
@@ -141,7 +148,8 @@ class GlobalJacobian(Jacobian):
             for out_idx_all in var_indices['output']:
                 key = (re_idx_all, out_idx_all)
                 if key in self._out_dict:
-                    self._int_mtx._out_update_submat(key, self._out_dict[key])
+                    self._int_mtx._out_update_submat(key, self._out_dict[key],
+                                                     self._system)
 
             for in_idx_all in var_indices['input']:
                 key = (re_idx_all, in_idx_all)
@@ -149,10 +157,12 @@ class GlobalJacobian(Jacobian):
                     out_idx_all = self._assembler._input_src_ids[in_idx_all]
                     if ivar1 <= out_idx_all < ivar2:
                         self._int_mtx._in_update_submat(self._keymap[key],
-                                                        self._in_dict[key])
+                                                        self._in_dict[key],
+                                                        self._system)
                     else:
                         self._ext_mtx._in_update_submat(key,
-                                                        self._in_dict[key])
+                                                        self._in_dict[key],
+                                                        self._system)
 
     def _apply(self, d_inputs, d_outputs, d_residuals, mode):
         """Compute matrix-vector product.
@@ -178,27 +188,27 @@ class GlobalJacobian(Jacobian):
             d_outputs.iadd_data(int_mtx._prod(d_residuals.get_data(), mode))
             d_inputs.iadd_data(ext_mtx._prod(d_residuals.get_data(), mode))
 
-    def _set_subjac_info(self, strkey, idxkey, meta, typ):
+    def _set_subjac_info(self, key, meta):
         """Store subjacobian metadata.
 
         Args
         ----
-        strkey : (ofname, wrtname)
-            A pair of names used as key for __setitem__.
-        idxkey : (of, wrt)
-            A pair of indices used to key into the info dicts.
+        key : (str, str)
+            output name, input name of sub-Jacobian.
         meta : dict
             Metadata dictionary for the subjacobian.
         typ : str
             Indictates the I/O type of the wrt variable.
         """
+        dct, out_ind, in_ind, out_size, in_size, typ = self._process_key(key)
+
         if typ == 'input':
-            self._subjacs_in_info[idxkey] = meta
+            self._subjacs_in_info[(out_ind, in_ind)] = (meta, (out_size, in_size))
         else:
-            self._subjacs_out_info[idxkey] = meta
+            self._subjacs_out_info[(out_ind, in_ind)] = (meta, (out_size, in_size))
 
         val = meta['value']
         if val is not None:
             if meta['rows'] is not None:
                 val = [val, meta['rows'], meta['cols']]
-            self.__setitem__(strkey, val)
+            self.__setitem__(key, val)

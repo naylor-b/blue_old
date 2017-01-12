@@ -125,16 +125,13 @@ class ExplicitComponent(Component):
 
     def _linearize(self):
         """Compute jacobian / factorization."""
+        oldjac = self._jacobian._system
         self._jacobian._system = self
 
         self._inputs.scale(self._scaling_to_phys['input'])
         self._outputs.scale(self._scaling_to_phys['output'])
 
-        self._jacobian._explicit = True
-        try:
-            self.compute_jacobian(self._inputs, self._outputs, self._jacobian)
-        finally:
-            self._jacobian._explicit = False
+        self.compute_jacobian(self._inputs, self._outputs, self._jacobian)
 
         self._inputs.scale(self._scaling_to_norm['input'])
         self._outputs.scale(self._scaling_to_norm['output'])
@@ -142,6 +139,8 @@ class ExplicitComponent(Component):
         self._jacobian._precompute_iter()
         if self._jacobian._top_name == self.pathname:
             self._jacobian._update()
+
+        self._jacobian._system = oldjac
 
     def _set_subjac_infos(self):
         """Sets subjacobian info into our jacobian."""
@@ -162,7 +161,8 @@ class ExplicitComponent(Component):
         key : (str, str)
             of name, wrt name of sub-Jacobian.
         """
-        self._jacobian._negate(key)
+        if key[1] in self._inputs:
+            self._jacobian._negate(key)
 
     def compute(self, inputs, outputs):
         """Compute outputs given inputs.

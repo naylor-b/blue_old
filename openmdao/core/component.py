@@ -3,6 +3,7 @@
 from __future__ import division
 
 import collections
+from fnmatch import fnmatchcase
 
 import numpy
 from six import string_types
@@ -109,9 +110,9 @@ class Component(System):
         # can use the dict for fast containment checks later.
         self._var_allprocs_indices['output'][name] = None
 
-    def set_subjac_info(self, of='*', wrt='*', rows=None, cols=None, val=None,
-                        approx=None, step=1.e-3, form='forward',
-                        dependent=True):
+    def set_subjac_info(self, of, wrt, dependent=True,
+                        rows=None, cols=None, val=None,
+                        approx=None, step=1.e-3, form='forward'):
         """Store subjacobian metadata for later use.
 
         Args
@@ -123,6 +124,15 @@ class Component(System):
             The name of the variables that derivatives are taken with respect to.
             This can contain the name of any input or output variable.
             May also contain a glob pattern.
+        dependent : bool(True)
+            If False, specifies no dependence between the output(s) and the
+            input(s). This is only necessary in the case of a sparse global
+            jacobian, because if 'dependent=False' is not specified and
+            set_subjac_info is not called for a given pair, then a dense
+            matrix of zeros will be allocated in the sparse global jacobian
+            for that pair.  In the case of a dense global jacobian it doesn't
+            matter because the space for a dense subjac will always be
+            allocated for every pair.
         rows : ndarray of int or None
             Row indices for each nonzero entry.  For sparse subjacobians only.
         cols : ndarray of int or None
@@ -136,15 +146,6 @@ class Component(System):
             Step size used for approximation (if approx is not None).
         form : str
             Form used for fd ('forward', 'central', 'backward').
-        dependent : bool(True)
-            If False, specifies no dependence between the output(s) and the
-            input(s). This is only necessary in the case of a sparse global
-            jacobian, because if 'dependent=False' is not specified and
-            set_subjac_info is not called for a given pair, then a dense
-            matrix of zeros will be allocated in the sparse global jacobian
-            for that pair.  In the case of a dense global jacobian it doesn't
-            matter because the space for a dense subjac will always be
-            allocated for every pair.
 
         """
         oflist = [of] if isinstance(of, string_types) else of
@@ -160,16 +161,53 @@ class Component(System):
                 meta = {
                     'rows': rows,
                     'cols': cols,
-                    'approx': approx,
-                    'dependent': dependent,
                     'value': val,
+                    'approx': approx,
+                    'step': step,
+                    'form': form,
+                    'dependent': dependent,
                 }
-
-                # set shape metadata
-                ofsize = numpy.prod(self._var2meta[of]['shape'])
-                wrtsize = numpy.prod(self._var2meta[wrt]['shape'])
-                meta['shape'] = (ofsize, wrtsize)
                 self._subjacs_info.append((of, wrt, meta))
+
+    def _set_subjac_infos(self):
+        """Sets subjacobian info into our jacobian."""
+        indices = self._var_allprocs_indices
+        oldsys = self._jacobian._system
+        self._jacobian._system = self
+
+        outs = self._var_allprocs_names['output']
+        ins = self._var_allprocs_names['input']
+
+        allpairs = set()
+        for resid in outs:
+            allpairs.update((resid, out) for out in outs)
+            allpairs.update((resid, inp) for inp in ins)
+
+        declared = []
+        for of, wrt, meta in self._subjacs_info:
+            ofmatches = [n for n in outs if n == of or fnmatchcase(n, of)]
+            for typ in ('input', 'output'):
+                for wrtname in self._var_allprocs_names[typ]:
+                    if wrtname == wrt or fnmatchcase(wrtname, wrt):
+                        for ofmatch in ofmatches:
+                            key = (ofmatch, wrtname)
+                            declared.append(key)
+                            self._jacobian._set_subjac_info(key, meta)
+
+        # set subjac info for those that are left
+        remaining = allpairs.difference(declared)
+        meta = {
+            'rows': None,
+            'cols': None,
+            'value': None,
+            'approx': None,
+            'step': 1.e-3,
+            'form': 'forward',
+            'dependent': True,
+        }
+        for key in remaining:
+            self._jacobian._set_subjac_info(key, meta)
+        self._jacobian._system = oldsys
 
     def _setup_vector(self, vectors, vector_var_ids, use_ref_vector):
         r"""Add this vector and assign sub_vectors to subsystems.

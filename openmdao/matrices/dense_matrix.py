@@ -19,17 +19,16 @@ class DenseMatrix(Matrix):
         num_cols : int
             number of cols in the matrix.
         """
-        matrix = numpy.zeros((num_rows, num_cols))
+        self._matrix = numpy.zeros((num_rows, num_cols))
         submat_meta_iter = ((self._out_submats, self._out_metadata),
                             (self._in_submats, self._in_metadata))
 
         for submats, metadata in submat_meta_iter:
             for key in submats:
-                info, irow, icol, src_indices = submats[key]
+                info, irow, icol, src_indices, shape = submats[key]
                 rows = info['rows']
                 cols = info['cols']
                 val = info['value']
-                shape = info['shape']
 
                 if rows is None and (val is None or isinstance(val,
                                                                numpy.ndarray)):
@@ -38,14 +37,10 @@ class DenseMatrix(Matrix):
                     if src_indices is None:
                         icol2 = icol + ncols
                         metadata[key] = (slice(irow, irow2),
-                                         slice(icol, icol2))
+                                         slice(icol, icol2), numpy.ndarray)
                     else:
                         metadata[key] = (slice(irow, irow2),
-                                         src_indices + icol)
-
-                    irows, icols = metadata[key]
-                    if val is not None:
-                        matrix[irows, icols] = val
+                                         src_indices + icol, numpy.ndarray)
                 elif isinstance(val, (coo_matrix, csr_matrix)):
                     jac = val.tocoo()
                     if src_indices is None:
@@ -59,9 +54,7 @@ class DenseMatrix(Matrix):
                         revidxs = numpy.argsort(idxs)
                         irows, icols = irows[revidxs], icols[revidxs]
 
-                    metadata[key] = (irows, icols)
-                    matrix[irows, icols] = jac.data
-
+                    metadata[key] = (irows, icols, type(val))
                 elif rows is not None:
                     if src_indices is None:
                         irows = rows + irow
@@ -73,12 +66,9 @@ class DenseMatrix(Matrix):
                         revidxs = numpy.argsort(idxs)
                         irows, icols = irows[revidxs], icols[revidxs]
 
-                    metadata[key] = (irows, icols)
-                    matrix[irows, icols] = val
+                    metadata[key] = (irows, icols, list)
 
-        self._matrix = matrix
-
-    def _update_submat(self, submats, metadata, key, jac):
+    def _update_submat(self, submats, metadata, key, jac, system):
         """Update the values of a sub-jacobian.
 
         Args
@@ -91,8 +81,15 @@ class DenseMatrix(Matrix):
             the global output and input variable indices.
         jac : ndarray or scipy.sparse or tuple
             the sub-jacobian, the same format with which it was declared.
+        system : <System>
+            The System that owns the jacobian.
         """
-        irows, icols = metadata[key]
+        irows, icols, jac_type = metadata[key]
+        if not isinstance(jac, jac_type):
+            raise TypeError("Jacobian entry for %s is of different type (%s) than "
+                            "the type (%s) used at init time." % (key,
+                                                                  type(jac).__name__,
+                                                                  jac_type.__name__))
         if isinstance(jac, numpy.ndarray):
             self._matrix[irows, icols] = jac
         elif isinstance(jac, (coo_matrix, csr_matrix)):

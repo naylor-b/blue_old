@@ -710,23 +710,11 @@ class System(object):
             self._jacobian._initialize()
 
     def _set_subjac_infos(self):
-        """Sets subjacobian info into our jacobian."""
-        indices = self._var_allprocs_indices
-        self._jacobian._system = self
+        """Sets subjacobian info into our jacobian.
 
-        for of, wrt, meta in self._subjacs_info:
-            ofmatches = [n for n in self._var_allprocs_names['output']
-                         if n == of or fnmatchcase(n, of)]
-            for typ in ('input', 'output'):
-                for wrtname in self._var_allprocs_names[typ]:
-                    if wrtname == wrt or fnmatchcase(wrtname, wrt):
-                        for ofmatch in ofmatches:
-                            of_idx = indices['output'][ofmatch]
-                            wrt_idx = indices[typ][wrtname]
-                            strkey = (ofmatch, wrtname)
-                            self._jacobian._set_subjac_info(strkey,
-                                                            (of_idx, wrt_idx),
-                                                            meta, typ)
+        Overridden in <Component>.
+        """
+        pass
 
     def _post_jac_setitem(self, key):
         """Overridden in ExplicitComponent.

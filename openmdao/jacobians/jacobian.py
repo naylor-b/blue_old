@@ -59,8 +59,6 @@ class Jacobian(object):
         self._keymap = {}
         self._iter_list = []
 
-        self._explicit = False  # True when computing jac for ExplicitComponent
-
         self.options = OptionsDictionary()
         self.options.update(kwargs)
 

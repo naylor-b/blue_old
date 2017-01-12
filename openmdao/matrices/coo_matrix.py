@@ -35,38 +35,36 @@ class CooMatrix(Matrix):
 
         for submats, metadata in submat_meta_iter:
             for key in submats:
-                info = submats[key][0]
-                value = info['value']
+                info, irow, icol, src_indices, shape = submats[key]
+                val = info['value']
+                dense = (info['rows'] is None and (val is None or
+                         isinstance(val, ndarray)))
                 ind1 = counter
 
-                if value is not None:
-                    jac = info['value']
-                    if isinstance(jac, ndarray):
-                        counter += jac.size
-                    elif isinstance(jac, (coo_matrix, csr_matrix)):
-                        counter += jac.data.size
-                    elif isinstance(jac, list):
-                        counter += len(jac[0])
+                if dense:
+                    if src_indices is not None:
+                        counter += len(src_indices) * shape[0]
+                    else:
+                        counter += numpy.prod(shape)
                 else:
-                    if info['rows'] is None:  # dense subjac
-                        counter += numpy.prod(info['shape'])
+                    if src_indices is not None:
+                        counter += len(src_indices)
                     else:
                         counter += len(info['rows'])
 
                 ind2 = counter
                 metadata[key] = (ind1, ind2)
 
-        data = numpy.empty(counter)
-        rows = numpy.empty(counter, int)
-        cols = numpy.empty(counter, int)
+        data = numpy.zeros(counter)
+        rows = -numpy.ones(counter, int)
+        cols = -numpy.ones(counter, int)
 
         for submats, metadata in submat_meta_iter:
             for key in submats:
-                info, irow, icol, src_indices = submats[key]
-                shape = info['shape']
-                jac = info['value']
-                dense = ((info['rows'] is None and jac is None) or 
-                         isinstance(jac, ndarray))
+                info, irow, icol, src_indices, shape = submats[key]
+                val = info['value']
+                dense = (info['rows'] is None and (val is None or
+                         isinstance(val, ndarray)))
 
                 ind1, ind2 = metadata[key]
                 idxs = None
@@ -77,7 +75,7 @@ class CooMatrix(Matrix):
                     if src_indices is None:
                         colrange = numpy.arange(shape[1], dtype=int)
                     else:
-                        colrange = numpy.array(src_indices, dtype=int)
+                        colrange = src_indices
 
                     ncols = colrange.size
                     subrows = rows[ind1:ind2]
@@ -90,35 +88,22 @@ class CooMatrix(Matrix):
                     rows[ind1:ind2] += irow
                     cols[ind1:ind2] += icol
 
-                    if jac is not None:
-                        data[ind1:ind2] = jac.flat
-
                 else:  #  sparse
-                    if isinstance(jac, (coo_matrix, csr_matrix)):
-                        jac = jac.tocoo()
-                        jdata = jac.data
+                    if isinstance(val, (coo_matrix, csr_matrix)):
+                        jac = val.tocoo()
                         jrows = jac.row
                         jcols = jac.col
-                    elif isinstance(jac, list):
-                        jdata = jac[0]
-                        jrows = jac[1]
-                        jcols = jac[2]
-                    else:  # value not provided
-                        jdata = None
+                    else:
                         jrows = info['rows']
                         jcols = info['cols']
 
                     if src_indices is None:
-                        if jdata is not None:
-                            data[ind1:ind2] = jdata
                         rows[ind1:ind2] = jrows + irow
                         cols[ind1:ind2] = jcols + icol
                     else:
                         irows, icols, idxs = _compute_index_map(jrows, jcols,
                                                                 irow, icol,
                                                                 src_indices)
-                        if jdata is not None:
-                            data[ind1:ind2] = jdata[idxs]
                         rows[ind1:ind2] = irows
                         cols[ind1:ind2] = icols
 
@@ -153,7 +138,7 @@ class CooMatrix(Matrix):
         self._matrix = coo_matrix((data, (rows, cols)),
                                   shape=(num_rows, num_cols))
 
-    def _update_submat(self, submats, metadata, key, jac):
+    def _update_submat(self, submats, metadata, key, jac, system):
         """Update the values of a sub-jacobian.
 
         Args
@@ -166,6 +151,8 @@ class CooMatrix(Matrix):
             the global output and input variable indices.
         jac : ndarray or scipy.sparse or tuple
             the sub-jacobian, the same format with which it was declared.
+        system : <System>
+            The System that owns the jacobian.
         """
         if isinstance(jac, ndarray):
             self._matrix.data[metadata[key]] = jac.flat

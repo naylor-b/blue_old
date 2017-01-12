@@ -82,7 +82,7 @@ class Matrix(object):
 
         return self._prod(in_vec, 'rev')
 
-    def _out_update_submat(self, key, jac):
+    def _out_update_submat(self, key, jac, system):
         """Update the values of a sub-jacobian.
 
         Args
@@ -91,10 +91,12 @@ class Matrix(object):
             the global output and input variable indices.
         jac : ndarray or scipy.sparse or tuple
             the sub-jacobian, the same format with which it was declared.
+        system : <System>
+            The System that owns the jacobian.
         """
-        self._update_submat(self._out_submats, self._out_metadata, key, jac)
+        self._update_submat(self._out_submats, self._out_metadata, key, jac, system)
 
-    def _in_update_submat(self, key, jac):
+    def _in_update_submat(self, key, jac, system):
         """Update the values of a sub-jacobian.
 
         Args
@@ -103,8 +105,10 @@ class Matrix(object):
             the global output and input variable indices.
         jac : ndarray or scipy.sparse or tuple
             the sub-jacobian, the same format with which it was declared.
+        system : <System>
+            The System that owns the jacobian.
         """
-        self._update_submat(self._in_submats, self._in_metadata, key, jac)
+        self._update_submat(self._in_submats, self._in_metadata, key, jac, system)
 
     def _build(self, num_rows, num_cols):
         """Allocate the matrix.
@@ -118,7 +122,7 @@ class Matrix(object):
         """
         pass
 
-    def _update_submat(self, submats, metadata, key, jac):
+    def _update_submat(self, submats, metadata, key, jac, system):
         """Update the values of a sub-jacobian.
 
         Args
@@ -131,6 +135,8 @@ class Matrix(object):
             the global output and input variable indices.
         jac : ndarray or scipy.sparse or tuple
             the sub-jacobian, the same format with which it was declared.
+        system : <System>
+            The System that owns the jacobian.
         """
         pass
 
