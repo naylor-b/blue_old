@@ -21,9 +21,7 @@ class Jacobian(object):
         pointer to the assembler.
     _system : <System>
         pointer to the system that is currently operating on this Jacobian.
-    _out_dict : dict
-        dictionary containing the user-supplied internal sub-Jacobians.
-    _in_dict : dict
+    _subjacs : dict
         dictionary containing the user-supplied external sub-Jacobians.
     _int_mtx : <Matrix>
         global internal Jacobian.
@@ -50,8 +48,7 @@ class Jacobian(object):
         self._assembler = None
         self._system = None
 
-        self._out_dict = {}
-        self._in_dict = {}
+        self._subjacs = {}
         self._int_mtx = None
         self._ext_mtx = None
         self._keymap = {}
@@ -70,8 +67,6 @@ class Jacobian(object):
 
         Returns
         -------
-        dct : dict
-            either the internal or the external dictionary.
         out_ind : int
             global index of output variable.
         in_ind : int
@@ -93,20 +88,17 @@ class Jacobian(object):
         if in_name in inputs:
             in_size = len(inputs._views_flat[in_name])
             in_ind = indices['input'][in_name]
-            dct = self._in_dict
             typ = 'input'
         elif in_name in outputs:
             in_size = len(outputs._views_flat[in_name])
             in_ind = indices['output'][in_name]
-            dct = self._out_dict
             typ = 'output'
         else:
             in_size = 0
             in_ind = -1
-            dct = None
             typ = ''
 
-        return dct, out_ind, in_ind, out_size, in_size, typ
+        return out_ind, in_ind, out_size, in_size, typ
 
     def _negate(self, key):
         """Multiply this sub-Jacobian by -1.0, for explicit variables.
@@ -116,15 +108,16 @@ class Jacobian(object):
         key : (str, str)
             output name, input name of sub-Jacobian.
         """
-        dct, out_ind, in_ind, out_size, in_size, typ = self._process_key(key)
-        jac = dct[out_ind, in_ind]
+        out_ind, in_ind, out_size, in_size, typ = self._process_key(key)
+        ikey = (out_ind, in_ind, typ)
+        jac = self._subjacs[ikey]
 
         if isinstance(jac, numpy.ndarray):
-            dct[out_ind, in_ind] = -jac
+            self._subjacs[ikey] = -jac
         elif isinstance(jac, (coo_matrix, csr_matrix)):
-            dct[out_ind, in_ind].data *= -1.0  # DOK not supported
+            self._subjacs[ikey].data *= -1.0  # DOK not supported
         elif len(jac) == 3:
-            dct[out_ind, in_ind][0] *= -1.0
+            self._subjacs[ikey][0] *= -1.0
         elif len(jac) == 2:
             # In this case, negation is not necessary because sparse FD
             # works on the residuals which already contains the negation
@@ -141,13 +134,13 @@ class Jacobian(object):
             for out_name in system._var_myproc_names['output']:
                 out_ind = system._var_allprocs_indices['output'][out_name]
 
-                if (re_ind, out_ind) in self._out_dict:
+                if (re_ind, out_ind, 'output') in self._subjacs:
                     self._iter_list.append((re_name, out_name))
 
             for in_name in system._var_myproc_names['input']:
                 in_ind = system._var_allprocs_indices['input'][in_name]
 
-                if (re_ind, in_ind) in self._in_dict:
+                if (re_ind, in_ind, 'input') in self._subjacs:
                     self._iter_list.append((re_name, in_name))
 
     def __contains__(self, key):
@@ -163,11 +156,8 @@ class Jacobian(object):
         boolean
             return whether sub-Jacobian has been defined.
         """
-        dct, out_ind, in_ind, out_size, in_size, typ = self._process_key(key)
-        if dct is None:
-            return False
-        else:
-            return (out_ind, in_ind) in dct
+        out_ind, in_ind, out_size, in_size, typ = self._process_key(key)
+        return (out_ind, in_ind, typ) in self._subjacs
 
     def __iter__(self):
         """Return iterator from pre-computed _iter_list.
@@ -190,7 +180,7 @@ class Jacobian(object):
             sub-Jacobian as a scalar, vector, array, or AIJ list or tuple.
         """
         system = self._system
-        dct, out_ind, in_ind, out_size, in_size, typ = self._process_key(key)
+        out_ind, in_ind, out_size, in_size, typ = self._process_key(key)
 
         if numpy.isscalar(jac):
             jac = numpy.array([jac], float).reshape((out_size, in_size))
@@ -220,7 +210,7 @@ class Jacobian(object):
         elif len(jac) == 3:
             jac[0] *= r_factor / c_factor
 
-        dct[out_ind, in_ind] = jac
+        self._subjacs[out_ind, in_ind, typ] = jac
 
     def __getitem__(self, key):
         """Get sub-Jacobian.
@@ -236,8 +226,8 @@ class Jacobian(object):
             sub-Jacobian as an array, sparse mtx, or AIJ/IJ list or tuple.
         """
         system = self._system
-        dct, out_ind, in_ind, out_size, in_size, typ = self._process_key(key)
-        jac = dct[out_ind, in_ind]
+        out_ind, in_ind, out_size, in_size, typ = self._process_key(key)
+        jac = self._subjacs[out_ind, in_ind, typ]
 
         ind = system._var_myproc_names['output'].index(key[0])
         r_factor = system._scaling_to_phys['residual'][ind, 1]

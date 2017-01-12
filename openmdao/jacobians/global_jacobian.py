@@ -71,23 +71,23 @@ class GlobalJacobian(Jacobian):
             re_offset = out_offsets[re_var_all]
 
             for out_var_all in indices['output']:
-                key = (re_var_all, out_var_all)
-                if key in self._out_dict:
-                    jac = self._out_dict[key]
+                key = (re_var_all, out_var_all, 'output')
+                if key in self._subjacs:
+                    jac = self._subjacs[key]
 
-                    self._int_mtx._out_add_submat(
-                        key, jac, re_offset, out_offsets[out_var_all])
+                    self._int_mtx._add_submat(
+                        key, jac, re_offset, out_offsets[out_var_all], None)
 
             for in_var_all in indices['input']:
-                key = (re_var_all, in_var_all)
-                if key in self._in_dict:
-                    jac = self._in_dict[key]
+                key = (re_var_all, in_var_all, 'input')
+                if key in self._subjacs:
+                    jac = self._subjacs[key]
 
                     out_var_all = self._assembler._input_src_ids[in_var_all]
                     if ivar1 <= out_var_all < ivar2:
                         if src_indices[in_var_all] is None:
                             self._keymap[key] = key
-                            self._int_mtx._in_add_submat(
+                            self._int_mtx._add_submat(
                                 key, jac, re_offset, out_offsets[out_var_all],
                                 None)
                         else:
@@ -95,13 +95,14 @@ class GlobalJacobian(Jacobian):
                             # instead of d(output)/d(input) when we have
                             # src_indices
                             key2 = (key[0],
-                                    self._assembler._input_src_ids[in_var_all])
+                                    self._assembler._input_src_ids[in_var_all],
+                                    'output')
                             self._keymap[key] = key2
-                            self._int_mtx._in_add_submat(
+                            self._int_mtx._add_submat(
                                 key2, jac, re_offset, out_offsets[out_var_all],
                                 src_indices[in_var_all])
                     else:
-                        self._ext_mtx._in_add_submat(
+                        self._ext_mtx._add_submat(
                             key, jac, re_offset, in_offsets[in_var_all], None)
 
         ind1, ind2 = self._system._var_allprocs_range['output']
@@ -122,20 +123,20 @@ class GlobalJacobian(Jacobian):
 
         for re_var_all in indices['output']:
             for out_var_all in indices['output']:
-                key = (re_var_all, out_var_all)
-                if key in self._out_dict:
-                    self._int_mtx._out_update_submat(key, self._out_dict[key])
+                key = (re_var_all, out_var_all, 'output')
+                if key in self._subjacs:
+                    self._int_mtx._update_submat(key, self._subjacs[key])
 
             for in_var_all in indices['input']:
-                key = (re_var_all, in_var_all)
-                if key in self._in_dict:
+                key = (re_var_all, in_var_all, 'input')
+                if key in self._subjacs:
                     out_var_all = self._assembler._input_src_ids[in_var_all]
                     if ivar1 <= out_var_all < ivar2:
-                        self._int_mtx._in_update_submat(self._keymap[key],
-                                                        self._in_dict[key])
+                        self._int_mtx._update_submat(self._keymap[key],
+                                                     self._subjacs[key])
                     else:
-                        self._ext_mtx._in_update_submat(key,
-                                                        self._in_dict[key])
+                        self._ext_mtx._update_submat(key,
+                                                     self._subjacs[key])
 
     def _apply(self, d_inputs, d_outputs, d_residuals, mode):
         """Compute matrix-vector product.

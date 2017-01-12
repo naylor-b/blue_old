@@ -118,3 +118,7 @@ class CompTestCaseBase(unittest.TestCase):
         prob.root._vectors['residual'][''] -= work
         self.assertAlmostEqual(
             prob.root._vectors['residual'][''].get_norm(), 0, delta=1e-2)
+
+
+if __name__ == '__main__':
+    unittest.main()
