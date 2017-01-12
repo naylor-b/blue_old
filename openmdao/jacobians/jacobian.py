@@ -57,8 +57,31 @@ class Jacobian(object):
         self.options = OptionsDictionary()
         self.options.update(kwargs)
 
-    def _process_key(self, key):
-        """Map output-input pair names to indices and sizes.
+    def _key2size(self, key):
+        """Return the sizes of the variables making up the key tuple.
+
+        Args
+        ----
+        key : (str, str)
+            output name, input name of sub-Jacobian.
+
+        Returns
+        -------
+        out_size : int
+            local size of the output variable.
+        in_size : int
+            local size of the input variable.
+        """
+        out_name, in_name = key
+        if in_name in self._system._inputs:
+            in_size = self._system._inputs._views_flat[in_name].size
+        else:
+            in_size = self._system._outputs[in_name].size
+
+        return len(self._system._outputs._views_flat[out_name]), in_size
+
+    def _key2idxs(self, key):
+        """Map output-input pair name to corresponding indices.
 
         Args
         ----
@@ -71,34 +94,18 @@ class Jacobian(object):
             global index of output variable.
         in_ind : int
             global index of input variable.
-        out_size : int
-            local size of the output variable.
-        in_size : int
-            local size of the input variable.
         typ : str
             'input' or 'output'.
         """
         out_name, in_name = key
-        outputs = self._system._outputs
-        inputs = self._system._inputs
-        indices = self._system._var_allprocs_indices
 
-        out_size = len(outputs._views_flat[out_name])
-        out_ind = indices['output'][out_name]
-        if in_name in inputs:
-            in_size = len(inputs._views_flat[in_name])
-            in_ind = indices['input'][in_name]
-            typ = 'input'
-        elif in_name in outputs:
-            in_size = len(outputs._views_flat[in_name])
-            in_ind = indices['output'][in_name]
-            typ = 'output'
-        else:
-            in_size = 0
-            in_ind = -1
-            typ = ''
+        out_ind = self._system._var_allprocs_indices['output'][out_name]
+        in_ind = self._system._var_allprocs_indices['input'].get(in_name)
+        if in_ind is not None:
+            return out_ind, in_ind, 'input'
 
-        return out_ind, in_ind, out_size, in_size, typ
+        return (out_ind, self._system._var_allprocs_indices['output'][in_name],
+                'output')
 
     def _negate(self, key):
         """Multiply this sub-Jacobian by -1.0, for explicit variables.
@@ -108,8 +115,7 @@ class Jacobian(object):
         key : (str, str)
             output name, input name of sub-Jacobian.
         """
-        out_ind, in_ind, out_size, in_size, typ = self._process_key(key)
-        ikey = (out_ind, in_ind, typ)
+        ikey = self._key2idxs(key)
         jac = self._subjacs[ikey]
 
         if isinstance(jac, numpy.ndarray):
@@ -156,8 +162,7 @@ class Jacobian(object):
         boolean
             return whether sub-Jacobian has been defined.
         """
-        out_ind, in_ind, out_size, in_size, typ = self._process_key(key)
-        return (out_ind, in_ind, typ) in self._subjacs
+        return self._key2idxs(key) in self._subjacs
 
     def __iter__(self):
         """Return iterator from pre-computed _iter_list.
@@ -180,7 +185,8 @@ class Jacobian(object):
             sub-Jacobian as a scalar, vector, array, or AIJ list or tuple.
         """
         system = self._system
-        out_ind, in_ind, out_size, in_size, typ = self._process_key(key)
+        out_ind, in_ind, typ = self._key2idxs(key)
+        out_size, in_size = self._key2size(key)
 
         if numpy.isscalar(jac):
             jac = numpy.array([jac], float).reshape((out_size, in_size))
@@ -226,7 +232,7 @@ class Jacobian(object):
             sub-Jacobian as an array, sparse mtx, or AIJ/IJ list or tuple.
         """
         system = self._system
-        out_ind, in_ind, out_size, in_size, typ = self._process_key(key)
+        out_ind, in_ind, typ = self._key2idxs(key)
         jac = self._subjacs[out_ind, in_ind, typ]
 
         ind = system._var_myproc_names['output'].index(key[0])
