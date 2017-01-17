@@ -19,64 +19,60 @@ class DenseMatrix(Matrix):
         num_cols : int
             number of cols in the matrix.
         """
-        self._matrix = numpy.zeros((num_rows, num_cols))
-        submat_meta_iter = ((self._out_submats, self._out_metadata),
-                            (self._in_submats, self._in_metadata))
+        self._matrix = matrix = numpy.zeros((num_rows, num_cols))
 
-        for submats, metadata in submat_meta_iter:
-            for key in submats:
-                info, irow, icol, src_indices, shape = submats[key]
-                rows = info['rows']
-                cols = info['cols']
-                val = info['value']
+        submats = self._submats
+        metadata = self._metadata
 
-                if rows is None and (val is None or isinstance(val,
-                                                               numpy.ndarray)):
-                    nrows, ncols = shape
-                    irow2 = irow + nrows
-                    if src_indices is None:
-                        icol2 = icol + ncols
-                        metadata[key] = (slice(irow, irow2),
-                                         slice(icol, icol2), numpy.ndarray)
-                    else:
-                        metadata[key] = (slice(irow, irow2),
-                                         src_indices + icol, numpy.ndarray)
-                elif isinstance(val, (coo_matrix, csr_matrix)):
-                    jac = val.tocoo()
-                    if src_indices is None:
-                        irows = irow + jac.row
-                        icols = icol + jac.col
-                    else:
-                        irows, icols, idxs = _compute_index_map(jac.row,
-                                                                jac.col,
-                                                                irow, icol,
-                                                                src_indices)
-                        revidxs = numpy.argsort(idxs)
-                        irows, icols = irows[revidxs], icols[revidxs]
+        for key in submats:
+            info, irow, icol, src_indices = submats[key]
+            rows = info['rows']
+            cols = info['cols']
+            val = info['value']
 
-                    metadata[key] = (irows, icols, type(val))
-                elif rows is not None:
-                    if src_indices is None:
-                        irows = rows + irow
-                        icols = cols + icol
-                    else:
-                        irows, icols, idxs = _compute_index_map(rows, cols,
-                                                                irow, icol,
-                                                                src_indices)
-                        revidxs = numpy.argsort(idxs)
-                        irows, icols = irows[revidxs], icols[revidxs]
+            if rows is None and (val is None or isinstance(val,
+                                                           numpy.ndarray)):
+                nrows, ncols = shape
+                irow2 = irow + nrows
+                if src_indices is None:
+                    icol2 = icol + ncols
+                    metadata[key] = (slice(irow, irow2),
+                                     slice(icol, icol2), numpy.ndarray)
+                else:
+                    metadata[key] = (slice(irow, irow2),
+                                     src_indices + icol, numpy.ndarray)
+            elif isinstance(val, (coo_matrix, csr_matrix)):
+                jac = val.tocoo()
+                if src_indices is None:
+                    irows = irow + jac.row
+                    icols = icol + jac.col
+                else:
+                    irows, icols, idxs = _compute_index_map(jac.row,
+                                                            jac.col,
+                                                            irow, icol,
+                                                            src_indices)
+                    revidxs = numpy.argsort(idxs)
+                    irows, icols = irows[revidxs], icols[revidxs]
 
-                    metadata[key] = (irows, icols, list)
+                metadata[key] = (irows, icols, type(val))
+            elif rows is not None:
+                if src_indices is None:
+                    irows = rows + irow
+                    icols = cols + icol
+                else:
+                    irows, icols, idxs = _compute_index_map(rows, cols,
+                                                            irow, icol,
+                                                            src_indices)
+                    revidxs = numpy.argsort(idxs)
+                    irows, icols = irows[revidxs], icols[revidxs]
 
-    def _update_submat(self, submats, metadata, key, jac, system):
+                metadata[key] = (irows, icols, list)
+
+    def _update_submat(self, key, jac):
         """Update the values of a sub-jacobian.
 
         Args
         ----
-        submats : dict
-            dictionary of sub-jacobian data keyed by (out_ind, in_ind).
-        metadata : dict
-            implementation-specific data for the sub-jacobians.
         key : (int, int)
             the global output and input variable indices.
         jac : ndarray or scipy.sparse or tuple
@@ -84,12 +80,7 @@ class DenseMatrix(Matrix):
         system : <System>
             The System that owns the jacobian.
         """
-        irows, icols, jac_type = metadata[key]
-        if not isinstance(jac, jac_type):
-            raise TypeError("Jacobian entry for %s is of different type (%s) than "
-                            "the type (%s) used at init time." % (key,
-                                                                  type(jac).__name__,
-                                                                  jac_type.__name__))
+        irows, icols = self._metadata[key]
         if isinstance(jac, numpy.ndarray):
             self._matrix[irows, icols] = jac
         elif isinstance(jac, (coo_matrix, csr_matrix)):
