@@ -99,12 +99,13 @@ class Jacobian(object):
         """
         out_name, in_name = key
 
-        out_ind = self._system._var_allprocs_indices['output'][out_name]
         in_ind = self._system._var_allprocs_indices['input'].get(in_name)
         if in_ind is not None:
-            return out_ind, in_ind, 'input'
+            return (self._system._var_allprocs_indices['output'][out_name],
+                    in_ind, 'input')
 
-        return (out_ind, self._system._var_allprocs_indices['output'][in_name],
+        return (self._system._var_allprocs_indices['output'][out_name],
+                self._system._var_allprocs_indices['output'][in_name],
                 'output')
 
     def _negate(self, key):
