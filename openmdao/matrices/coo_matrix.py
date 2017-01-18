@@ -43,7 +43,7 @@ class CooMatrix(Matrix):
                     counter += numpy.prod(shape)
             else:
                 if src_indices is not None:
-                    counter += len(src_indices)
+                    counter += len(src_indices) * shape[0]
                 else:
                     if rows is None:
                         counter += val.data.size
