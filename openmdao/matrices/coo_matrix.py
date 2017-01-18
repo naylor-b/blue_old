@@ -32,7 +32,8 @@ class CooMatrix(Matrix):
 
         for key, (info, irow, icol, src_indices, shape) in iteritems(self._submats):
             val = info['value']
-            dense = (info['rows'] is None and (val is None or
+            rows = info['rows']
+            dense = (rows is None and (val is None or
                      isinstance(val, ndarray)))
             ind1 = counter
             if dense:
@@ -44,7 +45,10 @@ class CooMatrix(Matrix):
                 if src_indices is not None:
                     counter += len(src_indices)
                 else:
-                    counter += len(info['rows'])
+                    if rows is None:
+                        counter += val.data.size
+                    else:
+                        counter += len(info['rows'])
             ind2 = counter
             self._metadata[key] = (ind1, ind2, None)
 
