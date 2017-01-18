@@ -37,18 +37,11 @@ class CooMatrix(Matrix):
                      isinstance(val, ndarray)))
             ind1 = counter
             if dense:
-                if src_indices is not None:
-                    counter += len(src_indices) * shape[0]
-                else:
-                    counter += numpy.prod(shape)
+                counter += numpy.prod(shape)
+            elif rows is None:
+                counter += val.data.size
             else:
-                if src_indices is not None:
-                    counter += len(src_indices) * shape[0]
-                else:
-                    if rows is None:
-                        counter += val.data.size
-                    else:
-                        counter += len(rows)
+                counter += len(rows)
             ind2 = counter
             self._metadata[key] = (ind1, ind2, None)
 

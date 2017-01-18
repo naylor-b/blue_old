@@ -143,8 +143,7 @@ class GlobalJacobian(Jacobian):
                                             out_names[out_idx_all]].size
                         self._int_mtx._add_submat(
                             key2, info, re_offset, out_offsets[out_idx_all],
-                            src_indices[in_idx_all],
-                            (shape[0], outsize))
+                            src_indices[in_idx_all], shape)
                 else:
                     self._ext_mtx._add_submat(
                         key, jac, re_offset, in_offsets[in_idx_all], None, shape)
