@@ -48,7 +48,7 @@ class CooMatrix(Matrix):
                     if rows is None:
                         counter += val.data.size
                     else:
-                        counter += len(info['rows'])
+                        counter += len(rows)
             ind2 = counter
             self._metadata[key] = (ind1, ind2, None)
 
