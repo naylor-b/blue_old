@@ -38,13 +38,13 @@ class CsrMatrix(CooMatrix):
         revidxs = numpy.argsort(srtidxs)
 
         metadata = self._metadata
-        for key, (ind1, ind2, idxs) in iteritems(metadata):
+        for key, (ind1, ind2, idxs, jac_type) in iteritems(metadata):
             if idxs is None:
-                metadata[key] = revidxs[ind1:ind2]
+                metadata[key] = (revidxs[ind1:ind2], jac_type)
             else:
                 # apply the reverse index to each part of revidxs so that
                 # we can avoid copying the index array during updates.
-                metadata[key] = revidxs[ind1:ind2][numpy.argsort(idxs)]
+                metadata[key] = (revidxs[ind1:ind2][numpy.argsort(idxs)], jac_type)
 
         # data array for the CSR should be the same as for the COO since
         # it was already in sorted order.

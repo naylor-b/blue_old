@@ -25,7 +25,7 @@ class DenseMatrix(Matrix):
         metadata = self._metadata
 
         for key in submats:
-            info, irow, icol, src_indices = submats[key]
+            info, irow, icol, src_indices, shape = submats[key]
             rows = info['rows']
             cols = info['cols']
             val = info['value']
@@ -80,7 +80,12 @@ class DenseMatrix(Matrix):
         system : <System>
             The System that owns the jacobian.
         """
-        irows, icols = self._metadata[key]
+        irows, icols, jac_type = self._metadata[key]
+        if not isinstance(jac, jac_type):
+            raise TypeError("Jacobian entry for %s is of different type (%s) than "
+                            "the type (%s) used at init time." % (key,
+                                                                  type(jac).__name__,
+                                                                  jac_type.__name__))
         if isinstance(jac, numpy.ndarray):
             self._matrix[irows, icols] = jac
         elif isinstance(jac, (coo_matrix, csr_matrix)):

@@ -30,7 +30,7 @@ class CooMatrix(Matrix):
         """
         counter = 0
 
-        for key, (info, irow, icol, src_indices) in iteritems(self._submats):
+        for key, (info, irow, icol, src_indices, shape) in iteritems(self._submats):
             val = info['value']
             dense = (info['rows'] is None and (val is None or
                      isinstance(val, ndarray)))
@@ -46,20 +46,20 @@ class CooMatrix(Matrix):
                 else:
                     counter += len(info['rows'])
             ind2 = counter
-            self._metadata[key] = (ind1, ind2)
+            self._metadata[key] = (ind1, ind2, None)
 
         data = numpy.zeros(counter)
         rows = -numpy.ones(counter, int)
         cols = -numpy.ones(counter, int)
 
-        for key, (info, irow, icol, src_indices) in iteritems(self._submats):
+        for key, (info, irow, icol, src_indices, shape) in iteritems(self._submats):
             val = info['value']
             dense = (info['rows'] is None and (val is None or
                      isinstance(val, ndarray)))
-            ind1, ind2 = self._metadata[key]
-            idxs = None
+            ind1, ind2, idxs = self._metadata[key]
 
             if dense:
+                jac_type = ndarray
                 rowrange = numpy.arange(shape[0], dtype=int)
 
                 if src_indices is None:
@@ -80,10 +80,12 @@ class CooMatrix(Matrix):
 
             else:  #  sparse
                 if isinstance(val, (coo_matrix, csr_matrix)):
+                    jac_type = type(val)
                     jac = val.tocoo()
                     jrows = jac.row
                     jcols = jac.col
                 else:
+                    jac_type = list
                     jrows = info['rows']
                     jcols = info['cols']
 
@@ -97,7 +99,7 @@ class CooMatrix(Matrix):
                     rows[ind1:ind2] = irows
                     cols[ind1:ind2] = icols
 
-            self._metadata[key] = (ind1, ind2, idxs)
+            self._metadata[key] = (ind1, ind2, idxs, jac_type)
 
         return data, rows, cols
 
@@ -114,13 +116,13 @@ class CooMatrix(Matrix):
         data, rows, cols = self._build_sparse(num_rows, num_cols)
 
         metadata = self._metadata
-        for key, (ind1, ind2, idxs) in iteritems(metadata):
+        for key, (ind1, ind2, idxs, jac_type) in iteritems(metadata):
             if idxs is None:
-                metadata[key] = slice(ind1, ind2)
+                metadata[key] = (slice(ind1, ind2), jac_type)
             else:
                 # store reverse indices to avoid copying subjac data during
                 # update_submat.
-                metadata[key] = numpy.argsort(idxs) + ind1
+                metadata[key] = (numpy.argsort(idxs) + ind1, jac_type)
 
         self._matrix = coo_matrix((data, (rows, cols)),
                                   shape=(num_rows, num_cols))
@@ -134,15 +136,19 @@ class CooMatrix(Matrix):
             the global output and input variable indices.
         jac : ndarray or scipy.sparse or tuple
             the sub-jacobian, the same format with which it was declared.
-        system : <System>
-            The System that owns the jacobian.
         """
+        idxs, jac_type = self._metadata[key]
+        if not isinstance(jac, jac_type):
+            raise TypeError("Jacobian entry for %s is of different type (%s) than "
+                            "the type (%s) used at init time." % (key,
+                                                                  type(jac).__name__,
+                                                                  jac_type.__name__))
         if isinstance(jac, ndarray):
-            self._matrix.data[self._metadata[key]] = jac.flat
+            self._matrix.data[idxs] = jac.flat
         elif isinstance(jac, (coo_matrix, csr_matrix)):
-            self._matrix.data[self._metadata[key]] = jac.data
+            self._matrix.data[idxs] = jac.data
         elif isinstance(jac, list):
-            self._matrix.data[self._metadata[key]] = jac[0]
+            self._matrix.data[idxs] = jac[0]
 
     def _prod(self, in_vec, mode):
         """Perform a matrix vector product.

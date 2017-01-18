@@ -40,6 +40,7 @@ class Component(System):
         'res_ref0': 0.0,
     }
 
+
     def __init__(self, **kwargs):
         """Initialize all attributes.
 
@@ -110,9 +111,8 @@ class Component(System):
         # can use the dict for fast containment checks later.
         self._var_allprocs_indices['output'][name] = None
 
-    def set_subjac_info(self, of, wrt, dependent=True,
-                        rows=None, cols=None, val=None,
-                        approx=None, step=1.e-3, form='forward'):
+    def declare_partial_derivs(self, of, wrt, dependent=True,
+                               rows=None, cols=None, val=None):
         """Store subjacobian metadata for later use.
 
         Args
@@ -140,12 +140,6 @@ class Component(System):
         val : float or ndarray of float
             Value of subjacobian.  If rows and cols are not None, this will
             contain the values found at each (row, col) location in the subjac.
-        approx : str(None)
-            Type of approximation ('fd' or 'cs') or None.
-        step : float
-            Step size used for approximation (if approx is not None).
-        form : str
-            Form used for fd ('forward', 'central', 'backward').
 
         """
         oflist = [of] if isinstance(of, string_types) else of
@@ -162,9 +156,6 @@ class Component(System):
                     'rows': rows,
                     'cols': cols,
                     'value': val,
-                    'approx': approx,
-                    'step': step,
-                    'form': form,
                     'dependent': dependent,
                 }
                 self._subjacs_info.append((of, wrt, meta))
@@ -178,35 +169,15 @@ class Component(System):
         outs = self._var_allprocs_names['output']
         ins = self._var_allprocs_names['input']
 
-        allpairs = set()
-        for resid in outs:
-            allpairs.update((resid, out) for out in outs)
-            allpairs.update((resid, inp) for inp in ins)
-
-        declared = []
         for of, wrt, meta in self._subjacs_info:
             ofmatches = [n for n in outs if n == of or fnmatchcase(n, of)]
-            for typ in ('input', 'output'):
-                for wrtname in self._var_allprocs_names[typ]:
+            for vnames in (ins, outs):
+                for wrtname in vnames:
                     if wrtname == wrt or fnmatchcase(wrtname, wrt):
                         for ofmatch in ofmatches:
                             key = (ofmatch, wrtname)
-                            declared.append(key)
                             self._jacobian._set_subjac_info(key, meta)
 
-        # set subjac info for those that are left
-        remaining = allpairs.difference(declared)
-        meta = {
-            'rows': None,
-            'cols': None,
-            'value': None,
-            'approx': None,
-            'step': 1.e-3,
-            'form': 'forward',
-            'dependent': True,
-        }
-        for key in remaining:
-            self._jacobian._set_subjac_info(key, meta)
         self._jacobian._system = oldsys
 
     def _setup_vector(self, vectors, vector_var_ids, use_ref_vector):
