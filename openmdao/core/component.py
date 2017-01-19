@@ -40,7 +40,6 @@ class Component(System):
         'res_ref0': 0.0,
     }
 
-
     def __init__(self, **kwargs):
         """Initialize all attributes.
 

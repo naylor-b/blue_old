@@ -46,6 +46,20 @@ class TestExplCompNondLinear(ExplicitComponent):
                 mtx = numpy.ones((size, size)) * 0.01
                 self.coeffs[out_name, in_name] = mtx
 
+        if self.metadata['jacobian_type'] != 'matvec':
+            coeffs = self.coeffs
+            for out_name in self.metadata['out_names']:
+                for in_name in self.metadata['in_names']:
+                    jac = self._get_jac((out_name, in_name))
+                    if self.metadata['partial_type'] == 'aij':
+                        self.declare_partial_derivs(out_name, in_name,
+                                                    rows=jac[1],
+                                                    cols=jac[2],
+                                                    val=jac[0])
+                    else:
+                        self.declare_partial_derivs(out_name, in_name,
+                                                    val=jac)
+
     def compute(self, inputs, outputs):
         for out_name in self.metadata['out_names']:
             op = outputs._views_flat[out_name]
@@ -73,28 +87,28 @@ class TestExplCompNondLinear(ExplicitComponent):
                         d_ip = d_inputs._views_flat[in_name]
                         d_ip += mtx.T.dot(d_op)
 
-    def compute_jacobian(self, inputs, outputs, jacobian):
-        def get_jac(key):
-            if self.metadata['partial_type'] == 'array':
-                jac = self.coeffs[key]
-            elif self.metadata['partial_type'] == 'sparse':
-                jac = scipy.sparse.csr_matrix(self.coeffs[key])
-            elif self.metadata['partial_type'] == 'aij':
-                shape = self.coeffs[key].shape
-                irows = numpy.zeros(shape, int)
-                icols = numpy.zeros(shape, int)
-                for indr in range(shape[0]):
-                    for indc in range(shape[1]):
-                        irows[indr, indc] = indr
-                        icols[indr, indc] = indc
-                data = self.coeffs[key].flatten()
-                rows = irows.flatten()
-                cols = icols.flatten()
-                jac = (data, rows, cols)
-            return jac
+    def _get_jac(self, key):
+        if self.metadata['partial_type'] == 'array':
+            jac = self.coeffs[key]
+        elif self.metadata['partial_type'] == 'sparse':
+            jac = scipy.sparse.csr_matrix(self.coeffs[key])
+        elif self.metadata['partial_type'] == 'aij':
+            shape = self.coeffs[key].shape
+            irows = numpy.zeros(shape, int)
+            icols = numpy.zeros(shape, int)
+            for indr in range(shape[0]):
+                for indc in range(shape[1]):
+                    irows[indr, indc] = indr
+                    icols[indr, indc] = indc
+            data = self.coeffs[key].flatten()
+            rows = irows.flatten()
+            cols = icols.flatten()
+            jac = (data, rows, cols)
+        return jac
 
+    def compute_jacobian(self, inputs, outputs, jacobian):
         if self.metadata['jacobian_type'] != 'matvec':
             coeffs = self.coeffs
             for out_name in self.metadata['out_names']:
                 for in_name in self.metadata['in_names']:
-                    jacobian[out_name, in_name] = get_jac((out_name, in_name))
+                    jacobian[out_name, in_name] = self._get_jac((out_name, in_name))

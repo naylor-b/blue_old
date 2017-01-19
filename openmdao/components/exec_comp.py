@@ -251,13 +251,21 @@ class ExecComp(ExplicitComponent):
                         jacobian[(u, param)] = numpy.zeros((jval.size, psize))
 
                     # set the column in the Jacobian entry
-                    jacobian[(u, param)][:, i] = jval.flat
+                    #  - avoid calling __setitem__ until we're ready, otherwise
+                    #    we get multiple calls to _negate for each key
+                    jac = jacobian[(u, param)]
+                    jac[:, i] = jval.flat
 
                 # restore old param value
                 if idx is None:
                     pwrap[param] -= step
                 else:
                     pwrap[param][idx] -= step
+                    
+                # now that we've looped over all of the i's, force call to _negate
+                # (only once) for each key
+                for u in non_pbo_outputs:
+                    jacobian[(u, param)] = jacobian[(u, param)]
 
 
 class _TmpDict(object):

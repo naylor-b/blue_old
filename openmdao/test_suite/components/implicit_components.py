@@ -50,6 +50,30 @@ class TestImplCompNondLinear(ImplicitComponent):
                 mtx = numpy.ones((size, size)) * 0.01
                 self.coeffs[re_name, in_name] = mtx
 
+        if self.metadata['jacobian_type'] != 'matvec':
+            coeffs = self.coeffs
+            for re_name in self.metadata['out_names']:
+                for out_name in self.metadata['out_names']:
+                    jac = self._get_jac((re_name, out_name))
+                    if self.metadata['partial_type'] == 'aij':
+                        self.declare_partial_derivs(re_name, out_name,
+                                                    rows=jac[1],
+                                                    cols=jac[2],
+                                                    val=jac[0])
+                    else:
+                        self.declare_partial_derivs(re_name, out_name,
+                                                    val=jac)
+                for in_name in self.metadata['in_names']:
+                    jac = self._get_jac((re_name, in_name))
+                    if self.metadata['partial_type'] == 'aij':
+                        self.declare_partial_derivs(re_name, in_name,
+                                                    rows=jac[1],
+                                                    cols=jac[2],
+                                                    val=jac[0])
+                    else:
+                        self.declare_partial_derivs(re_name, in_name,
+                                                    val=jac)
+
     def apply_nonlinear(self, inputs, outputs, residuals):
         for re_name in self.metadata['out_names']:
             re = residuals._views_flat[re_name]
@@ -89,30 +113,30 @@ class TestImplCompNondLinear(ImplicitComponent):
                         d_ip = d_inputs._views_flat[in_name]
                         d_ip += mtx.T.dot(d_re)
 
-    def linearize(self, inputs, outputs, jacobian):
-        def get_jac(key):
-            if self.metadata['partial_type'] == 'array':
-                jac = self.coeffs[key]
-            elif self.metadata['partial_type'] == 'sparse':
-                jac = scipy.sparse.csr_matrix(self.coeffs[key])
-            elif self.metadata['partial_type'] == 'aij':
-                shape = self.coeffs[key].shape
-                irows = numpy.zeros(shape, int)
-                icols = numpy.zeros(shape, int)
-                for indr in range(shape[0]):
-                    for indc in range(shape[1]):
-                        irows[indr, indc] = indr
-                        icols[indr, indc] = indc
-                data = self.coeffs[key].flatten()
-                rows = irows.flatten()
-                cols = icols.flatten()
-                jac = (data, rows, cols)
-            return jac
+    def _get_jac(self, key):
+        if self.metadata['partial_type'] == 'array':
+            jac = self.coeffs[key]
+        elif self.metadata['partial_type'] == 'sparse':
+            jac = scipy.sparse.csr_matrix(self.coeffs[key])
+        elif self.metadata['partial_type'] == 'aij':
+            shape = self.coeffs[key].shape
+            irows = numpy.zeros(shape, int)
+            icols = numpy.zeros(shape, int)
+            for indr in range(shape[0]):
+                for indc in range(shape[1]):
+                    irows[indr, indc] = indr
+                    icols[indr, indc] = indc
+            data = self.coeffs[key].flatten()
+            rows = irows.flatten()
+            cols = icols.flatten()
+            jac = (data, rows, cols)
+        return jac
 
+    def linearize(self, inputs, outputs, jacobian):
         if self.metadata['jacobian_type'] != 'matvec':
             coeffs = self.coeffs
             for re_name in self.metadata['out_names']:
                 for out_name in self.metadata['out_names']:
-                    jacobian[re_name, out_name] = get_jac((re_name, out_name))
+                    jacobian[re_name, out_name] = self._get_jac((re_name, out_name))
                 for in_name in self.metadata['in_names']:
-                    jacobian[re_name, in_name] = get_jac((re_name, in_name))
+                    jacobian[re_name, in_name] = self._get_jac((re_name, in_name))

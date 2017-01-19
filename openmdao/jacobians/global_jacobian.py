@@ -93,8 +93,8 @@ class GlobalJacobian(Jacobian):
                        for i in var_indices['output']}
         in_offsets = {i: self._get_var_range(i, 'input')[0]
                       for i in var_indices['input']}
-        # src_indices = {i: meta_in[j]['indices']
-        #                for j, i in enumerate(var_indices['input'])}
+        src_indices = {i: meta_in[j]['indices']
+                       for j, i in enumerate(var_indices['input'])}
 
         from openmdao.core.component import Component
         for s in self._system.system_iter(local=True, recurse=True,
@@ -130,8 +130,7 @@ class GlobalJacobian(Jacobian):
 
                     out_idx_all = self._assembler._input_src_ids[in_idx_all]
                     if ivar1 <= out_idx_all < ivar2:
-                        src_indices = s._var_myproc_metadata['input'][in_count]['indices']
-                        if src_indices is None:
+                        if src_indices[in_idx_all] is None:
                             self._int_mtx._add_submat(
                                 key, info, re_offset, out_offsets[out_idx_all],
                                 None, shape)
@@ -143,14 +142,12 @@ class GlobalJacobian(Jacobian):
                                     key[1],
                                     self._assembler._input_src_ids[in_idx_all])
                             self._keymap[key] = key2
-                            # outsize = self._system._outputs._views_flat[
-                            #                     out_names[out_idx_all]].size
                             self._int_mtx._add_submat(
                                 key2, info, re_offset, out_offsets[out_idx_all],
-                                src_indices, shape)
+                                src_indices[in_idx_all], shape)
                     else:
                         self._ext_mtx._add_submat(
-                            key, jac, re_offset, in_offsets[in_idx_all], None, shape)
+                            key, info, re_offset, in_offsets[in_idx_all], None, shape)
 
         out_size = numpy.sum(
             self._assembler._variable_sizes_all['output'][ivar1:ivar2])
