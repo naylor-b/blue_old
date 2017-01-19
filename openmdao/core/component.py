@@ -171,7 +171,7 @@ class Component(System):
 
         for of, wrt, meta in self._subjacs_info:
             ofmatches = [n for n in outs if n == of or fnmatchcase(n, of)]
-            for vnames in (ins, outs):
+            for vnames in (outs, ins):
                 for wrtname in vnames:
                     if wrtname == wrt or fnmatchcase(wrtname, wrt):
                         for ofmatch in ofmatches:

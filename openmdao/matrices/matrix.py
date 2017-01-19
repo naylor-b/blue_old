@@ -1,7 +1,7 @@
 """Define the base Matrix class."""
-from __future__ import division, print_function
+from __future__ import division
 import numpy
-
+import re
 
 class Matrix(object):
     """Base matrix class.
@@ -30,7 +30,8 @@ class Matrix(object):
         """
         self._comm = comm
         self._matrix = None
-        self._submats = {}
+        self._in_submats = {}
+        self._out_submats = {}
         self._metadata = {}
 
     def prod_fwd(self, in_vec, row_range=None):
@@ -95,7 +96,11 @@ class Matrix(object):
         shape : tuple
             Shape of the specified submatrix.
         """
-        self._submats[key] = (info, irow, icol, src_indices, shape)
+        if key[2] == -1:
+            dct = self._out_submats
+        else:
+            dct = self._in_submats
+        dct[key] = (info, irow, icol, src_indices, shape)
 
     def _build(self, num_rows, num_cols):
         """Allocate the matrix.
