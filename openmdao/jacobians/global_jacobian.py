@@ -93,15 +93,15 @@ class GlobalJacobian(Jacobian):
                        for i in var_indices['output']}
         in_offsets = {i: self._get_var_range(i, 'input')[0]
                       for i in var_indices['input']}
-        src_indices = {i: meta_in[j]['indices']
-                       for j, i in enumerate(var_indices['input'])}
+        # src_indices = {i: meta_in[j]['indices']
+        #                for j, i in enumerate(var_indices['input'])}
 
         from openmdao.core.component import Component
-        for s in self._system.system_iter(local=True, recurse=True, 
+        for s in self._system.system_iter(local=True, recurse=True,
                                           include_self=True, typ=Component):
             for re_idx_all in s._var_myproc_indices['output']:
                 re_offset = out_offsets[re_idx_all]
-    
+
                 for out_idx_all in s._var_myproc_indices['output']:
                     key = (re_idx_all, out_idx_all, _OUTPUT)
                     if key in self._subjacs_info:
@@ -112,11 +112,11 @@ class GlobalJacobian(Jacobian):
                         oname = out_names[out_idx_all]
                         shape = (system._outputs._views_flat[rname].size,
                                  system._outputs._views_flat[oname].size)
-    
+
                     self._int_mtx._add_submat(
                         key, info, re_offset, out_offsets[out_idx_all], None, shape)
-    
-                for in_idx_all in s._var_myproc_indices['input']:
+
+                for in_count, in_idx_all in enumerate(s._var_myproc_indices['input']):
                     key = (re_idx_all, in_idx_all, _INPUT)
                     self._keymap[key] = key
                     if key in self._subjacs_info:
@@ -127,10 +127,11 @@ class GlobalJacobian(Jacobian):
                         iname = in_names[in_idx_all]
                         shape = (system._outputs._views_flat[rname].size,
                                  system._inputs._views_flat[iname].size)
-    
+
                     out_idx_all = self._assembler._input_src_ids[in_idx_all]
                     if ivar1 <= out_idx_all < ivar2:
-                        if src_indices[in_idx_all] is None or out_idx_all != re_idx_all:
+                        src_indices = s._var_myproc_metadata['input'][in_count]['indices']
+                        if src_indices is None:
                             self._int_mtx._add_submat(
                                 key, info, re_offset, out_offsets[out_idx_all],
                                 None, shape)
@@ -142,11 +143,11 @@ class GlobalJacobian(Jacobian):
                                     key[1],
                                     self._assembler._input_src_ids[in_idx_all])
                             self._keymap[key] = key2
-                            outsize = self._system._outputs._views_flat[
-                                                out_names[out_idx_all]].size
+                            # outsize = self._system._outputs._views_flat[
+                            #                     out_names[out_idx_all]].size
                             self._int_mtx._add_submat(
                                 key2, info, re_offset, out_offsets[out_idx_all],
-                                src_indices[in_idx_all], shape)
+                                src_indices, shape)
                     else:
                         self._ext_mtx._add_submat(
                             key, jac, re_offset, in_offsets[in_idx_all], None, shape)

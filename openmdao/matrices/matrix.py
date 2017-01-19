@@ -1,7 +1,7 @@
 """Define the base Matrix class."""
 from __future__ import division
 import numpy
-import re
+
 
 class Matrix(object):
     """Base matrix class.
