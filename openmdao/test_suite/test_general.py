@@ -14,7 +14,7 @@ from six import iterkeys
 #     def test_openmdao(self, test):
 #         test.setup()
 #         problem = test.problem
-#         root = problem.root
+#         root = problem.model
 #
 #         expected_values = root.expected_values
 #         if expected_values:
@@ -38,7 +38,7 @@ class ParameterizedTestCasesSubset(unittest.TestCase):
     def test_subset(self, param_instance):
         param_instance.setup()
         problem = param_instance.problem
-        root = problem.root
+        root = problem.model
 
         expected_values = root.expected_values
         if expected_values:
