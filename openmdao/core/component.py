@@ -110,22 +110,22 @@ class Component(System):
             The name of the residual(s) that derivatives are being computed for.
             May also contain a glob pattern.
         wrt : str or list of str
-            The name of the variables that derivatives are taken with respect to.
-            This can contain the name of any input or output variable.
+            The name of the variables that derivatives are taken with respect
+            to. This can contain the name of any input or output variable.
             May also contain a glob pattern.
         dependent : bool(True)
             If False, specifies no dependence between the output(s) and the
             input(s). This is only necessary in the case of a sparse global
             jacobian, because if 'dependent=False' is not specified and
-            set_subjac_info is not called for a given pair, then a dense
+            declare_partial_derivs is not called for a given pair, then a dense
             matrix of zeros will be allocated in the sparse global jacobian
             for that pair.  In the case of a dense global jacobian it doesn't
             matter because the space for a dense subjac will always be
             allocated for every pair.
         rows : ndarray of int or None
-            Row indices for each nonzero entry.  For sparse subjacobians only.
+            Row indices ffor nonzero entries.  For sparse subjacobians only.
         cols : ndarray of int or None
-            Column indices for each nonzero entry.  For sparse subjacobians only.
+            Column indices for nonzero entries. For sparse subjacobians only.
         val : float or ndarray of float
             Value of subjacobian.  If rows and cols are not None, this will
             contain the values found at each (row, col) location in the subjac.
@@ -149,8 +149,8 @@ class Component(System):
                 }
                 self._subjacs_info.append((of, wrt, meta))
 
-    def _set_subjac_infos(self):
-        """Set subjacobian info into our jacobian."""
+    def _set_partial_derivs_meta(self):
+        """Set subjacobian metadata into our jacobian."""
         indices = self._var_allprocs_indices
         oldsys = self._jacobian._system
         self._jacobian._system = self
@@ -165,7 +165,7 @@ class Component(System):
                     if wrtname == wrt or fnmatchcase(wrtname, wrt):
                         for ofmatch in ofmatches:
                             key = (ofmatch, wrtname)
-                            self._jacobian._set_subjac_info(key, meta)
+                            self._jacobian._set_subjac_meta(key, meta)
 
         self._jacobian._system = oldsys
 
