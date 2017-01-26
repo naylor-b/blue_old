@@ -147,7 +147,7 @@ class Problem(object):
             absolute error.
         """
         warn_deprecation('This method provides backwards compabitibility with '
-                         'OpenMDAO <= 1.x ; use run_driver instead.')
+                         'OpenMDAO <= 1.x ; use run_model instead.')
 
         return self.run_model()
 
@@ -167,6 +167,21 @@ class Problem(object):
                          'OpenMDAO <= 1.x ; use run_driver instead.')
 
         return self.run_driver()
+
+    def run_driver(self):
+        """Run the driver.
+
+        Returns
+        -------
+        boolean
+            Failure flag; True if failed to converge, False is successful.
+        float
+            relative error.
+        float
+            absolute error.
+        """
+        # fix this once drivers exist
+        return self.run_model()
 
     def setup(self, vector_class=DefaultVector, check=True, logger=None,
               mode='auto'):
