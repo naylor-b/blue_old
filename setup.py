@@ -64,9 +64,8 @@ setup(name='openmdao',
       wingproj=openmdao.devtools.wingproj:run_wing
       1to2=openmdao.devtools.compat:convert_file
       webview=openmdao.devtools.webview:webview_argv
+      profile_view=openmdao.devtools.profile:prof_view
+      profile_totals=openmdao.devtools.profile:prof_totals
+      profile_dump=openmdao.devtools.profile:prof_dump
       """
-      # view_profile=openmdao.util.profile:prof_view
-      # proftotals=openmdao.util.profile:prof_totals
-      # profdump=openmdao.util.profile:prof_dump
-      # """
 )

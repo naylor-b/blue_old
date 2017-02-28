@@ -186,6 +186,7 @@ class TestGroup(unittest.TestCase):
             ]),
             promotes_outputs='*')
         p.model.add_subsystem('comp2', ExecComp('y=2*x'), promotes_inputs=['x'])
+
         p.setup()
 
         p.model.suppress_solver_output = True
