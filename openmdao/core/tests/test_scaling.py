@@ -8,6 +8,8 @@ from openmdao.api import Problem, Group, ExplicitComponent, ImplicitComponent, I
 from openmdao.api import NewtonSolver, ScipyIterativeSolver, NonlinearBlockGS
 
 from openmdao.devtools.testutil import assert_rel_error
+from openmdao.test_suite.components.expl_comp_array import TestExplCompArrayDense
+from openmdao.test_suite.components.impl_comp_array import TestImplCompArrayDense
 
 
 class PassThroughLength(ExplicitComponent):
@@ -378,5 +380,88 @@ class TestScaling(unittest.TestCase):
 
             self.assertEqual(res1a, (res1-res_ref0)/(res_ref-res_ref0))
 
+    def test_scale_array_with_float(self):
+
+        class ExpCompArrayScale(TestExplCompArrayDense):
+
+            def initialize_variables(self):
+                self.add_input('lengths', val=np.ones((2, 2)))
+                self.add_input('widths', val=np.ones((2, 2)))
+                self.add_output('areas', val=np.ones((2, 2)), ref=2.0)
+                self.add_output('stuff', val=np.ones((2, 2)), ref=3.0)
+                self.add_output('total_volume', val=1.)
+
+            def compute(self, inputs, outputs):
+                super(ExpCompArrayScale, self).compute(inputs, outputs)
+                outputs['stuff'] = inputs['widths'] + inputs['lengths']
+                
+                
+        prob = Problem()
+        model = prob.model = Group()
+
+        model.add_subsystem('p1', IndepVarComp('x', np.ones((2, 2))))
+        model.add_subsystem('comp', ExpCompArrayScale())
+        model.connect('p1.x', 'comp.lengths')
+
+        prob.setup(check=False)
+        prob['comp.widths'] = np.ones((2, 2))
+        prob.run_model()
+
+        assert_rel_error(self, prob['comp.total_volume'], 4.)
+        
+        with model._scaled_context():
+            val = model.get_subsystem('comp')._outputs['areas']
+            assert_rel_error(self, val[0, 0], 0.5)
+            assert_rel_error(self, val[0, 1], 0.5)
+            assert_rel_error(self, val[1, 0], 0.5)
+            assert_rel_error(self, val[1, 1], 0.5)
+
+            val = model.get_subsystem('comp')._outputs['stuff']
+            assert_rel_error(self, val[0, 0], 2.0/3)
+            assert_rel_error(self, val[0, 1], 2.0/3)
+            assert_rel_error(self, val[1, 0], 2.0/3)
+            assert_rel_error(self, val[1, 1], 2.0/3)
+           
+    def test_scale_array_with_array(self):
+
+        class ExpCompArrayScale(TestExplCompArrayDense):
+
+            def initialize_variables(self):
+                self.add_input('lengths', val=np.ones((2, 2)))
+                self.add_input('widths', val=np.ones((2, 2)))
+                self.add_output('areas', val=np.ones((2, 2)), ref=np.array([[2.0, 3.0], [5.0, 7.0]]))
+                self.add_output('stuff', val=np.ones((2, 2)), ref=np.array([[11.0, 13.0], [17.0, 19.0]]))
+                self.add_output('total_volume', val=1.)
+
+            def compute(self, inputs, outputs):
+                super(ExpCompArrayScale, self).compute(inputs, outputs)
+                outputs['stuff'] = inputs['widths'] + inputs['lengths']
+
+        prob = Problem()
+        model = prob.model = Group()
+
+        model.add_subsystem('p1', IndepVarComp('x', np.ones((2, 2))))
+        model.add_subsystem('comp', ExpCompArrayScale())
+        model.connect('p1.x', 'comp.lengths')
+
+        prob.setup(check=False)
+        prob['comp.widths'] = np.ones((2, 2))
+        prob.run_model()
+
+        assert_rel_error(self, prob['comp.total_volume'], 4.)
+
+        with model._scaled_context():
+            val = model.get_subsystem('comp')._outputs['areas']
+            assert_rel_error(self, val[0, 0], 1.0/2)
+            assert_rel_error(self, val[0, 1], 1.0/3)
+            assert_rel_error(self, val[1, 0], 1.0/5)
+            assert_rel_error(self, val[1, 1], 1.0/7)
+
+            val = model.get_subsystem('comp')._outputs['stuff']
+            assert_rel_error(self, val[0, 0], 2.0/11)
+            assert_rel_error(self, val[0, 1], 2.0/13)
+            assert_rel_error(self, val[1, 0], 2.0/17)
+            assert_rel_error(self, val[1, 1], 2.0/19)
+           
 if __name__ == '__main__':
     unittest.main()
