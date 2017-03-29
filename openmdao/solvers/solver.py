@@ -261,6 +261,10 @@ class NonlinearSolver(Solver):
             norm.
         """
         self._system._apply_nonlinear()
+        # print(self._system.pathname)
+        # for k in self._system._residuals:
+        #     print(k, self._system._outputs[k], np.linalg.norm(self._system._residuals[k]))
+        # print()
         return self._system._residuals.get_norm()
 
 

@@ -136,6 +136,12 @@ class Vector(object):
         The ivar_map index vector is the same length as data and indices,
         and it yields the index of the local variable.
 
+        Parameters
+        ----------
+        abs2data : {str: {}, ...}
+            Mapping of absolute pathname to metadata dict.
+        vectype : str
+            Vector type, one of 'input', 'output', 'residual'.
         """
         system = self._system
         assembler = system._assembler
@@ -171,27 +177,27 @@ class Vector(object):
             sizes_array = assembler._variable_sizes[self._typ][iset]
             ind1 = np.sum(sizes_array[self._iproc, :ivar]) - ind1_list[iset]
             ind2 = np.sum(sizes_array[self._iproc, :ivar + 1]) - ind1_list[iset]
-            
-            # Support scaling with vectors
+
+            # Support scaling with arrays
             n_scale = 1
             if vectype == 'output':
-                meta = abs2data[abs_name]['metadata']        
-                n_scale = max(len(np.atleast_1d(meta['ref'])), 
-                              len(np.atleast_1d(meta['ref0'])))                
+                meta = abs2data[abs_name]['metadata']
+                n_scale = max(len(np.atleast_1d(meta['ref'])),
+                              len(np.atleast_1d(meta['ref0'])))
                 if n_scale > 1:
                     my_idx = np.array(range(my_idx, my_idx + n_scale))
             elif vectype == 'residual':
-                meta = abs2data[abs_name]['metadata']        
-                n_scale = max(len(np.atleast_1d(meta['res_ref'])), 
-                              len(np.atleast_1d(meta['res_ref0'])))                
+                meta = abs2data[abs_name]['metadata']
+                n_scale = max(len(np.atleast_1d(meta['res_ref'])),
+                              len(np.atleast_1d(meta['res_ref0'])))
                 if n_scale > 1:
                     my_idx = np.array(range(my_idx, my_idx + n_scale))
-                
+
             ivar_map[iset][ind1:ind2] = my_idx + offset
-            
+
             if n_scale > 1:
                 offset += n_scale - 1
-            
+
         self._ivar_map = ivar_map
 
     def get_data(self, new_array=None):
