@@ -105,9 +105,9 @@ class Jacobian(object):
         abs_key : (str, str)
             Absolute name pair of sub-Jacobian.
         left_vec : ndarray
-            value to pre-multiply by.
+            Array to pre-multiply by.
         right_vec : ndarray
-            value to post-multiply by.
+            Array to post-multiply by.
         """
         jac = self._subjacs[abs_key]
         left_vec = np.atleast_2d(left_vec).T
@@ -118,8 +118,9 @@ class Jacobian(object):
             # DOK not supported
             self._subjacs[abs_key].data = left_vec * self._subjacs[abs_key].data / right_vec
         else:
-            # This should never be scalar
-            raise ValueError("Scalar Jacobian should never have a vector scaler.")
+            # TODO: This is currently untested because support for scaler specification of a
+            # subjac larger than 1x1 is not implemented.
+            self._subjacs[abs_key] = left_vec * self._subjacs[abs_key][0] / right_vec
 
     def _precompute_iter(self):
         """
@@ -254,23 +255,19 @@ class Jacobian(object):
         data0 = self._system._var_abs2data_io[abs_key[0]]
         data1 = self._system._var_abs2data_io[abs_key[1]]
 
-        try:
-            ind_of0 = data0['resid_scale_idx0']
-            ind_of1 = data0['resid_scale_idx1']
-        except KeyError:
-            ind_of0 = data0['my_idx']
-            ind_of1 = ind_of0 + 1
+        ind_of0, ind_of1 = data0['resid_scale_idx']
 
+        # Implicit states are the only wrt that will have this
         try:
-            ind_wrt0 = data1['output_scale_idx0']
-            ind_wrt1 = data1['output_scale_idx1']
+            ind_wrt0, ind_wrt1 = data1['output_scale_idx']
         except KeyError:
             ind_wrt0 = data1['my_idx']
             ind_wrt1 = ind_wrt0 + 1
 
         type_ = data1['type']
 
-        if (ind_of1 - ind_of0) > 1 or (ind_wrt1 - ind_wrt0) > 1:
+        # A vector scale factor on the residual needs to be transposed and pre-multiplied.
+        if (ind_of1 - ind_of0) > 1:
             self._pre_and_post_multiply_subjac(abs_key, coeffs['residual'][ind_of0:ind_of1, 1],
                                                coeffs[type_][ind_wrt0:ind_wrt1, 1])
         else:
