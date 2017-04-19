@@ -4,12 +4,23 @@ from __future__ import division
 import os
 import sys
 import warnings
+from contextlib import contextmanager
+
 from six import string_types
 
 from collections import Iterable
 import numbers
 
 import numpy as np
+
+
+@contextmanager
+def printoptions(*args, **kwargs):
+    """Temporarily sets numpy printoptions."""
+    original = np.get_printoptions()
+    np.set_printoptions(*args, **kwargs)
+    yield
+    np.set_printoptions(**original)
 
 
 def warn_deprecation(msg):

@@ -259,8 +259,7 @@ def startThread(fn):
     thread.start()
     return thread
 
-def view_pstats(prof_pattern, options):
-    port = options.prof_port
+def view_pstats(prof_pattern, port=8009):
 
     # collect all of the profile outputs
     prof_files = sorted(fnmatch.filter(os.listdir('.'), prof_pattern))
@@ -281,16 +280,16 @@ def view_pstats(prof_pattern, options):
     while serve_thread.isAlive():
         serve_thread.join(timeout=1)
 
-def main():
-    class Opt(object):
-        pass
-    options = Opt()
-    if len(sys.argv[1:]) > 1:
-        options.prof_port = int(sys.argv[2])
+
+def cmd_view_pstats(args=None):
+    if args is None:
+        args = sys.argv[1:]
+    print("args:", sys.argv)
+    if len(args) > 1:
+        prof_port = int(args[1])
     else:
-        options.prof_port = 8009
-    view_pstats(sys.argv[1], options)
+        prof_port = 8009
+    view_pstats(args[0], port=prof_port)
 
 if __name__ == '__main__':
-    main()
-
+    cmd_view_pstats()
