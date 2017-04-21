@@ -261,6 +261,11 @@ class Component(System):
             For advanced users only. ID or color for this variable, relevant for
             reconfigurability. Default is 0.
         """
+        if inspect.stack()[1][3] == '__init__':
+            warn_deprecation("In the future, the 'add_input' method must be "
+                             "called from 'initialize_variables' rather than "
+                             "in the '__init__' function.")
+
         if units == 'unitless':
             warn_deprecation("Input '%s' has units='unitless' but 'unitless' "
                              "has been deprecated. Use "
@@ -373,6 +378,11 @@ class Component(System):
             For advanced users only. ID or color for this variable, relevant for reconfigurability.
             Default is 0.
         """
+        if inspect.stack()[1][3] == '__init__':
+            warn_deprecation("In the future, the 'add_output' method must be "
+                             "called from 'initialize_variables' rather than "
+                             "in the '__init__' function.")
+
         if units == 'unitless':
             warn_deprecation("Output '%s' has units='unitless' but 'unitless' "
                              "has been deprecated. Use "
