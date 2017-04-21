@@ -205,6 +205,10 @@ class PetscKSP(LinearSolver):
         self.options.declare('ksp_type', value='fgmres', values=KSP_TYPES,
                              desc="KSP algorithm to use. Default is 'fgmres'.")
 
+        self.options.declare('restart', value=1000, type_=int,
+                             desc='Number of iterations between restarts. Larger values increase '
+                             'iteration cost, but may be necessary for convergence')
+
         # changing the default maxiter from the base class
         self.options['maxiter'] = 100
 
@@ -262,25 +266,23 @@ class PetscKSP(LinearSolver):
         x_vec.set_data(_get_petsc_vec_array(in_vec))
 
         # apply linear
-        ind1, ind2 = system._var_allprocs_idx_range['output']
-        var_inds = [ind1, ind2, ind1, ind2]
-        system._apply_linear([vec_name], self._mode, var_inds)
+        scope_out, scope_in = system._get_scope()
+        system._apply_linear([vec_name], self._mode, scope_out, scope_in)
 
         # stuff resulting value of b vector into result for KSP
         b_vec.get_data(result.array)
 
-    def _need_child_linearize(self):
+    def _linearize_children(self):
         """
-        Return a flag indicating if you would like your child solvers to get a linearization or not.
+        Return a flag that is True when we need to call linearize on our subsystems' solvers.
 
         Returns
         -------
         boolean
-            flag for indicating child linerization
+            Flag for indicating child linerization
         """
-        if self.precon is not None:
-            return self.precon._need_child_linearize()
-        return False
+        precon = self.precon
+        return (precon is not None) and (precon._linearize_children())
 
     def _linearize(self):
         """
@@ -416,15 +418,9 @@ class PetscKSP(LinearSolver):
         if vec_name in self._ksp:
             return self._ksp[vec_name]
 
-        lsize = 0
-        for abs_name in system._var_abs_names['output']:
-            lsize += np.prod(system._var_abs2data_io[abs_name]['metadata']['shape'])
-
-        size = 0
-        global_var_sizes = system._assembler._variable_sizes_all['output']
-        idx_start, idx_end = system._var_allprocs_idx_range['output']
-        for idx in range(idx_start, idx_end):
-            size += sum(global_var_sizes[:, idx])
+        iproc = system.comm.rank
+        lsize = np.sum(system._var_sizes['output'][iproc, :])
+        size = np.sum(system._var_sizes['output'])
 
         jac_mat = PETSc.Mat().createPython([(lsize, size), (lsize, size)],
                                            comm=system.comm)
@@ -435,7 +431,7 @@ class PetscKSP(LinearSolver):
 
         ksp.setOperators(jac_mat)
         ksp.setType(self.options['ksp_type'])
-        ksp.setGMRESRestart(1000)
+        ksp.setGMRESRestart(self.options['restart'])
         ksp.setPCSide(PETSc.PC.Side.RIGHT)
         ksp.setMonitor(Monitor(self))
 

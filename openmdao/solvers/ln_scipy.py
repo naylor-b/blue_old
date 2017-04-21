@@ -65,18 +65,17 @@ class ScipyIterativeSolver(LinearSolver):
         if self.precon is not None:
             self.precon._setup_solvers(self._system, self._depth + 1)
 
-    def _need_child_linearize(self):
+    def _linearize_children(self):
         """
-        Return a flag indicating if you would like your child solvers to get a linearization or not.
+        Return a flag that is True when we need to call linearize on our subsystems' solvers.
 
         Returns
         -------
         boolean
-            flag for indicating child linerization
+            Flag for indicating child linerization
         """
-        if self.precon is not None:
-            return self.precon._need_child_linearize()
-        return False
+        precon = self.precon
+        return (precon is not None) and (precon._linearize_children())
 
     def _linearize(self):
         """
@@ -101,7 +100,6 @@ class ScipyIterativeSolver(LinearSolver):
         """
         vec_name = self._vec_name
         system = self._system
-        ind1, ind2 = system._var_allprocs_idx_range['output']
 
         if self._mode == 'fwd':
             x_vec = system._vectors['output'][vec_name]
@@ -111,13 +109,8 @@ class ScipyIterativeSolver(LinearSolver):
             b_vec = system._vectors['output'][vec_name]
 
         x_vec.set_data(in_vec)
-        var_inds = [
-            system._var_allprocs_idx_range['output'][0],
-            system._var_allprocs_idx_range['output'][1],
-            system._var_allprocs_idx_range['output'][0],
-            system._var_allprocs_idx_range['output'][1],
-        ]
-        system._apply_linear([vec_name], self._mode, var_inds)
+        scope_out, scope_in = system._get_scope()
+        system._apply_linear([vec_name], self._mode, scope_out, scope_in)
 
         # self._mpi_print(b_vec.get_data())
         return b_vec.get_data()

@@ -28,6 +28,9 @@ class Solver(object):
         number of iterations for the current invocation of the solver.
     options : <OptionsDictionary>
         options dictionary.
+    supports : <OptionsDictionary>
+        options dictionary describing what features are supported by this
+        solver.
     """
 
     SOLVER = 'base_solver'
@@ -56,6 +59,10 @@ class Solver(object):
                              desc='relative error tolerance')
         self.options.declare('iprint', type_=int, value=1,
                              desc='whether to print output')
+
+        # What the solver supports.
+        self.supports = OptionsDictionary()
+        self.supports.declare('gradients', type_=bool, value=False)
 
         self._declare_options()
         self.options.update(kwargs)
@@ -186,14 +193,14 @@ class Solver(object):
         """
         pass
 
-    def _need_child_linearize(self):
+    def _linearize_children(self):
         """
-        Return a flag indicating if you would like your child solvers to get a linearization or not.
+        Return a flag that is True when we need to call linearize on our subsystems' solvers.t.
 
         Returns
         -------
         boolean
-            flag for indicating child linerization
+            Flag for indicating child linerization
         """
         return True
 
@@ -255,7 +262,7 @@ class NonlinearSolver(Solver):
         float
             error at the first iteration.
         """
-        if self.options['maxiter'] > 1:
+        if self.options['maxiter'] > 0:
             norm = self._iter_get_norm()
         else:
             norm = 1.0
@@ -347,13 +354,8 @@ class LinearSolver(Solver):
             norm.
         """
         system = self._system
-        var_inds = [
-            system._var_allprocs_idx_range['output'][0],
-            system._var_allprocs_idx_range['output'][1],
-            system._var_allprocs_idx_range['output'][0],
-            system._var_allprocs_idx_range['output'][1],
-        ]
-        system._apply_linear(self._vec_names, self._mode, var_inds)
+        scope_out, scope_in = system._get_scope()
+        system._apply_linear(self._vec_names, self._mode, scope_out, scope_in)
 
         if self._mode == 'fwd':
             b_vecs = system._vectors['residual']

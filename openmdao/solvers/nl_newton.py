@@ -28,7 +28,9 @@ class NewtonSolver(NonlinearSolver):
     _mode : str
         'fwd' or 'rev', applicable to linear solvers only.
     _iter_count : int
-        number of iterations for the current invocation of the solver.
+        Number of iterations for the current invocation of the solver.
+    _ln_solver_from_parent : bool
+        This is set to True if we are using the parent system's linear solver.
     """
 
     SOLVER = 'NL: Newton'
@@ -50,6 +52,9 @@ class NewtonSolver(NonlinearSolver):
         # Slot for linesearch
         self.linesearch = None
 
+        # We only need to call linearize on the ln_solver if its not shared with the parent group.
+        self._ln_solver_from_parent = True
+
     def _declare_options(self):
         """
         Declare options before kwargs are processed in the init method.
@@ -58,6 +63,7 @@ class NewtonSolver(NonlinearSolver):
                              desc='Set to True to turn on sub-solvers (Hybrid Newton).')
         self.options.declare('max_sub_solves', type_=int, value=10,
                              desc='Maximum number of subsystem solves.')
+        self.supports['gradients'] = True
 
     def _setup_solvers(self, system, depth):
         """
@@ -71,9 +77,6 @@ class NewtonSolver(NonlinearSolver):
             depth of the current system (already incremented).
         """
         super(NewtonSolver, self)._setup_solvers(system, depth)
-
-        # we only need to call linearize on th ln_solver if its not shared with the parent group
-        self._ln_solver_from_parent = True
 
         if self.ln_solver is not None:
             self.ln_solver._setup_solvers(self._system, self._depth + 1)
@@ -94,27 +97,17 @@ class NewtonSolver(NonlinearSolver):
             norm.
         """
         system = self._system
-
-        # Hybrid newton support.
-        if self.options['solve_subsystems'] and self._iter_count <= self.options['max_sub_solves']:
-            for isub, subsys in enumerate(system._subsystems_allprocs):
-                system._transfers['fwd', isub](system._inputs,
-                                               system._outputs, 'fwd')
-
-                if subsys in system._subsystems_myproc:
-                    subsys._solve_nonlinear()
-
         system._apply_nonlinear()
         return system._residuals.get_norm()
 
-    def _need_child_linearize(self):
+    def _linearize_children(self):
         """
-        Return a flag indicating if you would like your child solvers to get a linearization or not.
+        Return a flag that is True when we need to call linearize on our subsystems' solvers.
 
         Returns
         -------
         boolean
-            flag for indicating child linerization
+            Flag for indicating child linerization
         """
         return (self.options['solve_subsystems']
                 and self._iter_count <= self.options['max_sub_solves'])
@@ -146,9 +139,20 @@ class NewtonSolver(NonlinearSolver):
         Perform the operations in the iteration loop.
         """
         system = self._system
+
+        # Hybrid newton support.
+        if self.options['solve_subsystems'] and self._iter_count <= self.options['max_sub_solves']:
+            for isub, subsys in enumerate(system._subsystems_allprocs):
+                system._transfer('nonlinear', 'fwd', isub)
+
+                if subsys in system._subsystems_myproc:
+                    subsys._solve_nonlinear()
+            system._apply_nonlinear()
+
         system._vectors['residual']['linear'].set_vec(system._residuals)
         system._vectors['residual']['linear'] *= -1.0
         system._linearize()
+
         self.ln_solver.solve(['linear'], 'fwd')
         if self.linesearch:
             self.linesearch.solve()
