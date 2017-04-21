@@ -122,18 +122,6 @@ class NewtonSolver(NonlinearSolver):
         if self.linesearch is not None:
             self.linesearch._linearize()
 
-    def _iter_initialize(self):
-        system = self._system
-
-        for isub, subsys in enumerate(system._subsystems_allprocs):
-            system._transfers['nonlinear']['fwd', isub](system._inputs,
-                                                        system._outputs, 'fwd')
-
-            if subsys in system._subsystems_myproc:
-                subsys._solve_nonlinear()
-
-        return super(NewtonSolver, self)._iter_initialize()
-
     def _iter_execute(self):
         """
         Perform the operations in the iteration loop.
@@ -158,19 +146,3 @@ class NewtonSolver(NonlinearSolver):
             self.linesearch.solve()
         else:
             system._outputs += system._vectors['output']['linear']
-
-        for isub, subsys in enumerate(system._subsystems_allprocs):
-            system._transfers['nonlinear']['fwd', isub](system._inputs,
-                                                        system._outputs, 'fwd')
-
-            if subsys in system._subsystems_myproc:
-                subsys._solve_nonlinear()
-
-        # print(system.pathname)
-        # outputs = system._vectors['output']['nonlinear']
-        # resids = system._vectors['residual']['nonlinear']
-        # import numpy as np
-        # super(NewtonSolver, self)._iter_initialize()
-        # for var_name in outputs:
-        #     print(var_name, np.sum(outputs[var_name]), np.linalg.norm(resids[var_name]))
-        # print()
