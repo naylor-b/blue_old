@@ -51,12 +51,6 @@ class DirectSolver(LinearSolver):
             # Perform dense or sparse lu factorization
             if isinstance(mtx, DenseMatrix):
                 np.set_printoptions(precision=3)
-                # print(system.pathname)
-                # print(system._var_abs_names['output'])
-                # for i, row in enumerate(mtx._matrix):
-                #     print(i, np.any(row))
-                # print("foo")
-                # exit()
                 self._lup = scipy.linalg.lu_factor(mtx._matrix)
             elif isinstance(mtx, (CSRMatrix, CSCMatrix)):
                 np.set_printoptions(precision=3)

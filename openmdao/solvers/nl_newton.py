@@ -1,5 +1,4 @@
 """Define the NewtonSolver class."""
-from __future__ import print_function
 
 from openmdao.solvers.solver import NonlinearSolver
 
