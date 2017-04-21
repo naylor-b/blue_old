@@ -3,7 +3,6 @@ from __future__ import print_function
 # This is a slightly modified version of:
 #    http://sourceforge.net/p/imvu/code/HEAD/tree/imvu_open_source/tools/pstats_viewer.py
 
-#from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
 import os
 import pstats
 import sys
@@ -260,8 +259,16 @@ def startThread(fn):
     return thread
 
 def view_pstats(prof_pattern, port=8009):
+    """
+    Start an interactive web viewer for profiling data.
 
-    # collect all of the profile outputs
+    Parameters
+    ----------
+    prof_pattern: str
+        Name of profile data file or glob pattern.
+    port: int
+        Port number used by web server.
+    """
     prof_files = sorted(fnmatch.filter(os.listdir('.'), prof_pattern))
     if prof_files:
         stats = pstats.Stats(prof_files[0])
@@ -282,9 +289,11 @@ def view_pstats(prof_pattern, port=8009):
 
 
 def cmd_view_pstats(args=None):
+    """
+    Allows calling of view_pstats from a console script.
+    """
     if args is None:
         args = sys.argv[1:]
-    print("args:", sys.argv)
     if len(args) > 1:
         prof_port = int(args[1])
     else:

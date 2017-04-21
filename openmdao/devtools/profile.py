@@ -1,9 +1,7 @@
 """Various profiling functions."""
 
-
 import cProfile
 import pstats
-import subprocess
 from contextlib import contextmanager
 
 from openmdao.devtools.pstats_viewer import view_pstats
